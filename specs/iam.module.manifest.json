@@ -3,7 +3,7 @@
   "kind": "sdkwork.iam.module",
   "moduleId": "plugins",
   "catalogVersion": "1.0.0",
-  "domain": "intelligence",
+  "domain": "plugins",
   "owner": "sdkwork-plugins",
   "displayName": "SDKWork Plugins Module",
   "permissions": {
