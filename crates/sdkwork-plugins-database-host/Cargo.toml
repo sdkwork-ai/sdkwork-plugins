@@ -1,0 +1,24 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-plugins-database-host"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+description = "SDKWork Plugins database lifecycle bootstrap."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_plugins_database_host"
+path = "src/lib.rs"
+
+[dependencies]
+dotenvy = "0.15"
+sdkwork-database-config = { workspace = true }
+sdkwork-database-drift = { workspace = true }
+sdkwork-database-lifecycle = { workspace = true }
+sdkwork-database-spi = { workspace = true }
+sdkwork-database-sqlx = { workspace = true }
+sdkwork-id-core = { workspace = true }
+sqlx = { workspace = true }

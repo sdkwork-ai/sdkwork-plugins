@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-api-plugins-assembly",
+    "displayName": "SDKWork Plugins API Assembly",
+    "version": "0.1.0",
+    "type": "rust-assembly-crate",
+    "root": "crates/sdkwork-api-plugins-assembly",
+    "domain": "intelligence",
+    "capability": "plugins",
+    "surface": "assembly",
+    "languages": [
+      "rust"
+    ],
+    "generated": false,
+    "manifests": [
+      "Cargo.toml",
+      "assembly-manifest.json"
+    ]
+  },
+  "canonicalSpecs": [
+    {
+      "file": "CODE_STYLE_SPEC.md",
+      "path": "../../../sdkwork-specs/CODE_STYLE_SPEC.md",
+      "purpose": "Authored source structure and generated code boundaries."
+    },
+    {
+      "file": "NAMING_SPEC.md",
+      "path": "../../../sdkwork-specs/NAMING_SPEC.md",
+      "purpose": "Canonical SDKWork naming rules."
+    },
+    {
+      "file": "API_ASSEMBLY_SPEC.md",
+      "path": "../../../sdkwork-specs/API_ASSEMBLY_SPEC.md",
+      "purpose": "API assembly contribution contract."
+    },
+    {
+      "file": "RUST_CODE_SPEC.md",
+      "path": "../../../sdkwork-specs/RUST_CODE_SPEC.md",
+      "purpose": "Rust crate rules."
+    }
+  ],
+  "contracts": {
+    "layerRole": "api-assembly",
+    "publicExports": [
+      "."
+    ],
+    "providedPorts": [],
+    "requiredPorts": [],
+    "runtimeEntrypoints": [
+      "assemble_api_router",
+      "assemble_api_router_with_pool",
+      "assemble_app_api_contribution",
+      "assemble_backend_api_contribution",
+      "assembly_route_count",
+      "bootstrap_database_from_env",
+      "web_module",
+      "web_module_with_pool"
+    ],
+    "routeManifest": "assembly-manifest.json",
+    "sdkClients": [],
+    "sdkDependencies": [],
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [],
+    "configKeys": []
+  },
+  "verification": {
+    "commands": [
+      "cargo check -p sdkwork-api-plugins-assembly"
+    ]
+  }
+}

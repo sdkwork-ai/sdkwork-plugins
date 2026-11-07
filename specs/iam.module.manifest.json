@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.iam.module",
+  "moduleId": "plugins",
+  "catalogVersion": "1.0.0",
+  "domain": "intelligence",
+  "owner": "sdkwork-plugins",
+  "displayName": "SDKWork Plugins Module",
+  "permissions": {
+    "catalog": [
+      {
+        "code": "plugins.admin.category.read",
+        "name": "Read plugin categories",
+        "resource": "plugin_category",
+        "action": "read",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      },
+      {
+        "code": "plugins.admin.category.manage",
+        "name": "Manage plugin categories",
+        "resource": "plugin_category",
+        "action": "manage",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      },
+      {
+        "code": "plugins.admin.plugin.read",
+        "name": "Read managed plugins",
+        "resource": "plugin",
+        "action": "read",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      },
+      {
+        "code": "plugins.admin.plugin.manage",
+        "name": "Manage plugins",
+        "resource": "plugin",
+        "action": "manage",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      },
+      {
+        "code": "plugins.marketplace.read",
+        "name": "Read the published plugin marketplace",
+        "resource": "plugin_marketplace",
+        "action": "read",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      },
+      {
+        "code": "plugins.marketplace.install",
+        "name": "Install published plugins into the caller scope",
+        "resource": "plugin_installation",
+        "action": "install",
+        "status": "active",
+        "since": "1.0.0",
+        "replacementCode": null
+      }
+    ]
+  },
+  "roles": {
+    "domainStandardRoles": [
+      {
+        "code": "plugins_admin_operator",
+        "name": "Plugins Admin Operator",
+        "surface": "organization",
+        "scope": "organization",
+        "standard": true,
+        "assignable": true,
+        "bindingPrincipalKind": "organization_membership",
+        "permissionPatterns": [
+          "plugins.admin.category.read",
+          "plugins.admin.category.manage",
+          "plugins.admin.plugin.read",
+          "plugins.admin.plugin.manage"
+        ]
+      }
+    ],
+    "roleGrantExtensions": [
+      {
+        "roleCode": "org_admin",
+        "patterns": ["plugins.*"]
+      },
+      {
+        "roleCode": "org_operations",
+        "patterns": [
+          "plugins.admin.category.read",
+          "plugins.admin.category.manage",
+          "plugins.admin.plugin.read",
+          "plugins.admin.plugin.manage"
+        ]
+      }
+    ],
+    "roleExclusions": []
+  },
+  "directory": {
+    "organizationTemplates": [],
+    "departmentTemplates": [],
+    "positionTemplates": [],
+    "membershipTemplates": []
+  },
+  "policyConditions": {
+    "supportedAttributes": []
+  },
+  "dependencies": {
+    "requiresModules": ["iam-kernel"]
+  }
+}

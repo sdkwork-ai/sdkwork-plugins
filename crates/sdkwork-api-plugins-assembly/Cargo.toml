@@ -1,0 +1,27 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-api-plugins-assembly"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+description = "Generated API assembly for sdkwork-plugins application HTTP plane."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_api_plugins_assembly"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+sdkwork-web-bootstrap = { workspace = true }
+sdkwork-web-core = { workspace = true }
+sqlx = { workspace = true }
+sdkwork-database-sqlx = { workspace = true }
+sdkwork-intelligence-plugins-repository-sqlx = { workspace = true }
+sdkwork-intelligence-plugins-service = { workspace = true }
+sdkwork_plugins_database_host = { workspace = true }
+sdkwork_routes_plugins_app_api = { workspace = true }
+sdkwork_routes_plugins_backend_api = { workspace = true }

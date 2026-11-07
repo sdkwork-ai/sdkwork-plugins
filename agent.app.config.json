@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 3,
+  "kind": "agent.app",
+  "app": {
+    "key": "sdkwork-plugins",
+    "name": "SDKWork Plugins",
+    "description": "AI capability plugin registry for SDKWork: plugin categories and managed plugins with install lifecycle, shared across platform applications.",
+    "appType": "APP_HTML",
+    "containerImage": "registry.sdkwork.com/apps/sdkwork-plugins"
+  },
+  "backend": {
+    "profileKey": "backend-root-admin",
+    "tenantId": 100001
+  },
+  "runtime": {
+    "family": "web",
+    "deploymentProfiles": ["cloud", "standalone"]
+  },
+  "media": {
+    "icon": "etc/media/icon.svg",
+    "screenshots": []
+  },
+  "publish": {
+    "channels": ["platform"]
+  },
+  "artifacts": {
+    "packages": [
+      {
+        "id": "web-dist",
+        "path": "dist",
+        "archive": "tar.gz"
+      }
+    ]
+  },
+  "release": {
+    "currentVersion": "0.1.0",
+    "channel": "STABLE"
+  },
+  "metadata": {
+    "domain": "intelligence",
+    "capability": "plugins",
+    "deploymentConfig": "etc/sdkwork.deployment.config.json",
+    "standardOwner": "sdkwork-platform"
+  }
+}

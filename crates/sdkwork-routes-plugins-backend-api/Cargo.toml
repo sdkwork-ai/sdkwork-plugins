@@ -1,0 +1,27 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-routes-plugins-backend-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Admin HTTP surface for the SDKWork Plugins capability (/backend/v3/api)."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_routes_plugins_backend_api"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { workspace = true }
+sdkwork-iam-web-adapter = { workspace = true }
+sdkwork-intelligence-plugins-service = { workspace = true }
+sdkwork-plugins-contract = { workspace = true }
+sdkwork-web-axum = { workspace = true }
+sdkwork-web-bootstrap = { workspace = true }
+sdkwork-web-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sdkwork-utils-rust = { workspace = true }
+sqlx = { workspace = true }

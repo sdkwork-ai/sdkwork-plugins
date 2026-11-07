@@ -1,0 +1,36 @@
+{
+  "name": "@sdkwork/plugins-pc-admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SDKWork Plugins PC admin management block (backend-api managed plugin categories and plugins).",
+  "main": "./src/index.tsx",
+  "module": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx",
+      "default": "./src/index.tsx"
+    },
+    "./pluginsAdminService": "./src/pluginsAdminService.ts"
+  },
+  "dependencies": {
+    "@sdkwork/plugins-backend-sdk": "workspace:*",
+    "@sdkwork/utils": "workspace:*",
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "typescript": "^5.9.0"
+  },
+  "sdkwork": {
+    "workspace": "sdkwork-plugins",
+    "architecture": "pc-react",
+    "domain": "intelligence",
+    "capability": "plugins-admin",
+    "surface": "admin",
+    "status": "ready"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "workspace": "sdkwork-plugins-backend-sdk",
+  "sdkOwner": "sdkwork-plugins",
+  "apiAuthority": "sdkwork-plugins.backend",
+  "authoritySpec": "../../apis/backend-api/plugins/plugins-backend-api.openapi.json",
+  "generationInputSpec": "../../apis/backend-api/plugins/plugins-backend-api.openapi.json",
+  "sdkDependencies": [],
+  "derivedSpecs": {
+    "default": "../../apis/backend-api/plugins/plugins-backend-api.openapi.json"
+  },
+  "discoverySurface": {
+    "sdkTarget": "backend",
+    "apiPrefix": "/backend/v3/api",
+    "generatedProtocols": [
+      "http-openapi"
+    ],
+    "manualTransports": []
+  },
+  "schemaVersion": 1,
+  "sdkName": "sdkwork-plugins-backend-sdk",
+  "sdkFamily": "sdkwork-plugins-backend-sdk",
+  "sdkType": "backend",
+  "apiPrefix": "/backend/v3/api",
+  "generatedPackages": {
+    "typescript": {
+      "language": "typescript",
+      "packageName": "sdkwork-plugins-backend-sdk-generated-typescript",
+      "generatedOutput": "sdkwork-plugins-backend-sdk-typescript/generated/server-openapi"
+    }
+  },
+  "generatorName": "@sdkwork/sdk-generator",
+  "generatorPath": "../sdkwork-sdk-generator/bin/sdkgen.js",
+  "baseUrl": "http://127.0.0.1:18101",
+  "standardProfile": "sdkwork-v3",
+  "fixedSdkVersion": "0.1.0",
+  "ownerOnlyOperationCount": 6,
+  "operations": [
+    {
+      "method": "POST",
+      "operationId": "pluginsAdmin.createPlugin",
+      "path": "/backend/v3/api/plugins"
+    },
+    {
+      "method": "DELETE",
+      "operationId": "pluginsAdmin.deletePlugin",
+      "path": "/backend/v3/api/plugins/{pluginKey}"
+    },
+    {
+      "method": "GET",
+      "operationId": "pluginsAdmin.listCategories",
+      "path": "/backend/v3/api/plugin_categories"
+    },
+    {
+      "method": "GET",
+      "operationId": "pluginsAdmin.listPlugins",
+      "path": "/backend/v3/api/plugins"
+    },
+    {
+      "method": "PUT",
+      "operationId": "pluginsAdmin.updatePlugin",
+      "path": "/backend/v3/api/plugins/{pluginKey}"
+    },
+    {
+      "method": "POST",
+      "operationId": "pluginsAdmin.upsertCategory",
+      "path": "/backend/v3/api/plugin_categories"
+    }
+  ],
+  "managedBy": "tools/plugins_sdk_generator_runner.mjs"
+}

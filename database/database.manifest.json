@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "kind": "sdkwork.database.module",
+  "databaseRole": "authoritative-server",
+  "moduleId": "plugins",
+  "serviceCode": "PLUGINS",
+  "displayName": "SDKWork Plugins Database",
+  "owner": "plugins-platform",
+  "engines": [
+    "postgres"
+  ],
+  "defaultEngine": "postgres",
+  "tablePrefix": "ai_plugin_",
+  "contractVersion": "1.0.0",
+  "baselineStrategy": "baseline-plus-migrations",
+  "baselineAnchorTable": "ai_plugin",
+  "modules": [],
+  "lifecycle": {
+    "autoMigrate": false,
+    "seedOnBoot": false,
+    "defaultSeedLocale": "zh-CN",
+    "defaultSeedProfile": "standard",
+    "supportedSeedLocales": [
+      "zh-CN",
+      "en-US"
+    ],
+    "activeSeedLocales": [
+      "zh-CN",
+      "en-US"
+    ]
+  },
+  "readiness": {
+    "requiredTables": [
+      "ai_plugin_category",
+      "ai_plugin"
+    ]
+  }
+}

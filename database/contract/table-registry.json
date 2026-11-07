@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.database.table-registry",
+  "tables": [
+    {
+      "name": "ai_plugin_category",
+      "prefix": "ai_plugin_",
+      "owner": "plugins-platform",
+      "module": "registry"
+    },
+    {
+      "name": "ai_plugin",
+      "prefix": "ai_plugin_",
+      "owner": "plugins-platform",
+      "module": "registry"
+    }
+  ]
+}

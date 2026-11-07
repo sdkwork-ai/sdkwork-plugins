@@ -1,0 +1,27 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-routes-plugins-app-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Marketplace HTTP surface for the SDKWork Plugins capability (/app/v3/api)."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_routes_plugins_app_api"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { workspace = true }
+sdkwork-iam-web-adapter = { workspace = true }
+sdkwork-intelligence-plugins-service = { workspace = true }
+sdkwork-plugins-contract = { workspace = true }
+sdkwork-web-axum = { workspace = true }
+sdkwork-web-bootstrap = { workspace = true }
+sdkwork-web-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sdkwork-utils-rust = { workspace = true }
+sqlx = { workspace = true }

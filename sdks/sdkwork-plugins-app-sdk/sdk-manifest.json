@@ -1,0 +1,55 @@
+{
+  "workspace": "sdkwork-plugins-app-sdk",
+  "sdkOwner": "sdkwork-plugins",
+  "apiAuthority": "sdkwork-plugins.app",
+  "authoritySpec": "../../apis/app-api/plugins/plugins-app-api.openapi.json",
+  "generationInputSpec": "../../apis/app-api/plugins/plugins-app-api.openapi.json",
+  "sdkDependencies": [],
+  "derivedSpecs": {
+    "default": "../../apis/app-api/plugins/plugins-app-api.openapi.json"
+  },
+  "discoverySurface": {
+    "sdkTarget": "app",
+    "apiPrefix": "/app/v3/api",
+    "generatedProtocols": [
+      "http-openapi"
+    ],
+    "manualTransports": []
+  },
+  "schemaVersion": 1,
+  "sdkName": "sdkwork-plugins-app-sdk",
+  "sdkFamily": "sdkwork-plugins-app-sdk",
+  "sdkType": "app",
+  "apiPrefix": "/app/v3/api",
+  "generatedPackages": {
+    "typescript": {
+      "language": "typescript",
+      "packageName": "sdkwork-plugins-app-sdk-generated-typescript",
+      "generatedOutput": "sdkwork-plugins-app-sdk-typescript/generated/server-openapi"
+    }
+  },
+  "generatorName": "@sdkwork/sdk-generator",
+  "generatorPath": "../sdkwork-sdk-generator/bin/sdkgen.js",
+  "baseUrl": "http://127.0.0.1:18101",
+  "standardProfile": "sdkwork-v3",
+  "fixedSdkVersion": "0.1.0",
+  "ownerOnlyOperationCount": 3,
+  "operations": [
+    {
+      "method": "GET",
+      "operationId": "plugins.list",
+      "path": "/app/v3/api/plugins"
+    },
+    {
+      "method": "GET",
+      "operationId": "plugins.listCategories",
+      "path": "/app/v3/api/plugin_categories"
+    },
+    {
+      "method": "GET",
+      "operationId": "plugins.retrieve",
+      "path": "/app/v3/api/plugins/{pluginKey}"
+    }
+  ],
+  "managedBy": "tools/plugins_sdk_generator_runner.mjs"
+}

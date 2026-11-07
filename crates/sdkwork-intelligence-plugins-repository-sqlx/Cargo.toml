@@ -1,0 +1,24 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-intelligence-plugins-repository-sqlx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "PostgreSQL persistence for the SDKWork Plugins capability (ai_plugin_* tables)."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_intelligence_plugins_repository_sqlx"
+path = "src/lib.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+sdkwork-id-core = { workspace = true }
+sdkwork-intelligence-plugins-service = { workspace = true }
+sdkwork-plugins-contract = { workspace = true }
+sdkwork-utils-rust = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }

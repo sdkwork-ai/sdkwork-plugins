@@ -1,0 +1,23 @@
+[package]
+rust-version.workspace = true
+name = "sdkwork-intelligence-plugins-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Business logic and repository contract for the SDKWork Plugins capability."
+
+[lints]
+workspace = true
+
+[lib]
+name = "sdkwork_intelligence_plugins_service"
+path = "src/lib.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+regex-lite = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+sdkwork-plugins-contract = { workspace = true }
+sdkwork-utils-rust = { workspace = true }
+thiserror = { workspace = true }

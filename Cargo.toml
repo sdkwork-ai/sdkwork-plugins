@@ -1,0 +1,68 @@
+[workspace]
+members = [
+    "crates/sdkwork-api-plugins-assembly",
+    "crates/sdkwork-plugins-contract",
+    "crates/sdkwork-intelligence-plugins-service",
+    "crates/sdkwork-intelligence-plugins-repository-sqlx",
+    "crates/sdkwork-routes-plugins-app-api",
+    "crates/sdkwork-routes-plugins-backend-api",
+    "crates/sdkwork-plugins-database-host",
+]
+resolver = "2"
+
+[workspace.package]
+rust-version = "1.85"
+edition = "2021"
+version = "0.1.0"
+license = "AGPL-3.0-or-later"
+
+[workspace.lints.rust]
+# RUST_CODE_SPEC.md section 13 baseline.
+# Deny-tier lints (unsafe_code, panic, unwrap_used, expect_used, pedantic) are
+# promoted per crate together with their cleanup: enabling them fleet-wide
+# today floods or fails builds that have not paid that debt yet.
+unsafe_op_in_unsafe_fn = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+exit = "warn"
+
+[workspace.dependencies]
+sdkwork_api_plugins_assembly = { path = "crates/sdkwork-api-plugins-assembly", package = "sdkwork-api-plugins-assembly" }
+
+sdkwork_routes_plugins_backend_api = { path = "crates/sdkwork-routes-plugins-backend-api", package = "sdkwork-routes-plugins-backend-api" }
+
+sdkwork_routes_plugins_app_api = { path = "crates/sdkwork-routes-plugins-app-api", package = "sdkwork-routes-plugins-app-api" }
+
+sdkwork_plugins_database_host = { path = "crates/sdkwork-plugins-database-host", package = "sdkwork-plugins-database-host" }
+
+sdkwork-web-bootstrap = { path = "../sdkwork-web-framework/crates/sdkwork-web-bootstrap" }
+async-trait = "0.1"
+axum = { version = "0.8", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "json"] }
+
+sdkwork-plugins-contract = { path = "crates/sdkwork-plugins-contract" }
+sdkwork-intelligence-plugins-service = { path = "crates/sdkwork-intelligence-plugins-service" }
+sdkwork-intelligence-plugins-repository-sqlx = { path = "crates/sdkwork-intelligence-plugins-repository-sqlx" }
+sdkwork-web-axum = { path = "../sdkwork-web-framework/crates/sdkwork-web-axum" }
+sdkwork-web-core = { path = "../sdkwork-web-framework/crates/sdkwork-web-core" }
+sdkwork-iam-web-adapter = { path = "../sdkwork-iam/crates/sdkwork-iam-web-adapter" }
+sdkwork-database-config = { path = "../sdkwork-database/crates/sdkwork-database-config", package = "sdkwork-database-config" }
+sdkwork-database-lifecycle = { path = "../sdkwork-database/crates/sdkwork-database-lifecycle", package = "sdkwork-database-lifecycle" }
+sdkwork-database-spi = { path = "../sdkwork-database/crates/sdkwork-database-spi", package = "sdkwork-database-spi" }
+sdkwork-database-sqlx = { path = "../sdkwork-database/crates/sdkwork-database-sqlx", package = "sdkwork-database-sqlx" }
+sdkwork-database-drift = { path = "../sdkwork-database/crates/sdkwork-database-drift", package = "sdkwork-database-drift" }
+sdkwork-utils-rust = { path = "../sdkwork-utils/packages/sdkwork-utils-rust" }
+sdkwork-id-core = { path = "../sdkwork-id/crates/sdkwork-id-core" }
+
+[profile.dev]
+debug = "line-tables-only"
