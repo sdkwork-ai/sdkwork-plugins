@@ -1,7 +1,10 @@
 /target
 dist
+coverage
 node_modules
 *.local
 .env
 !.env.example
 /tmp
+.DS_Store
+Thumbs.db

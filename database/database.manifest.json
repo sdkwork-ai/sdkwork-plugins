@@ -34,5 +34,11 @@
       "ai_plugin_category",
       "ai_plugin"
     ]
+  },
+  "paths": {
+    "contract": "contract/schema.yaml",
+    "migrations": "migrations",
+    "seeds": "seeds",
+    "driftPolicy": "drift/policy.yaml"
   }
 }
