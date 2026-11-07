@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/sdkwork-api-plugins-assembly",
+    "crates/sdkwork-api-plugins-standalone-gateway",
     "crates/sdkwork-plugins-contract",
     "crates/sdkwork-intelligence-plugins-service",
     "crates/sdkwork-intelligence-plugins-repository-sqlx",

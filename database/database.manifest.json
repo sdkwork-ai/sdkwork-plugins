@@ -10,7 +10,7 @@
     "postgres"
   ],
   "defaultEngine": "postgres",
-  "tablePrefix": "ai_plugin_",
+  "tablePrefix": "ai_plugin",
   "contractVersion": "1.0.0",
   "baselineStrategy": "baseline-plus-migrations",
   "baselineAnchorTable": "ai_plugin",

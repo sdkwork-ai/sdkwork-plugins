@@ -1,0 +1,164 @@
+{
+  "$schema": "../sdkwork-github-workflow/schemas/agent-workflow.schema.json",
+  "schemaVersion": "2026-06-06.agent.workflow.v1",
+  "app": {
+    "id": "sdkwork-plugins",
+    "name": "SDKWork Plugins",
+    "repository": "sdkwork-ai/sdkwork-plugins",
+    "sourcePath": ".",
+    "configPath": "agent.app.config.json"
+  },
+  "release": {
+    "artifactPrefix": "sdkwork-plugins",
+    "defaultVersion": "0.1.0",
+    "changelog": {
+      "source": "app-manifest",
+      "maxCommitSubjects": 50
+    }
+  },
+  "dependencies": [
+    {
+      "id": "sdkwork-app-topology",
+      "repository": "sdkwork-ai/sdkwork-app-topology",
+      "refInput": "SDKWORK_APP_TOPOLOGY_REF"
+    },
+    {
+      "id": "sdkwork-appbase",
+      "repository": "sdkwork-ai/sdkwork-appbase",
+      "refInput": "SDKWORK_APPBASE_REF"
+    },
+    {
+      "id": "sdkwork-core",
+      "repository": "sdkwork-ai/sdkwork-core",
+      "refInput": "SDKWORK_CORE_REF"
+    },
+    {
+      "id": "sdkwork-database",
+      "repository": "sdkwork-ai/sdkwork-database",
+      "refInput": "SDKWORK_DATABASE_REF"
+    },
+    {
+      "id": "sdkwork-drive",
+      "repository": "sdkwork-ai/sdkwork-drive",
+      "refInput": "SDKWORK_DRIVE_REF"
+    },
+    {
+      "id": "sdkwork-iam",
+      "repository": "sdkwork-ai/sdkwork-iam",
+      "refInput": "SDKWORK_IAM_REF"
+    },
+    {
+      "id": "sdkwork-id",
+      "repository": "sdkwork-ai/sdkwork-id",
+      "refInput": "SDKWORK_ID_REF"
+    },
+    {
+      "id": "sdkwork-sdk-commons",
+      "repository": "sdkwork-ai/sdkwork-sdk-commons",
+      "refInput": "SDKWORK_SDK_COMMONS_REF"
+    },
+    {
+      "id": "sdkwork-sdk-generator",
+      "repository": "sdkwork-ai/sdkwork-sdk-generator",
+      "refInput": "SDKWORK_SDK_GENERATOR_REF"
+    },
+    {
+      "id": "sdkwork-search",
+      "repository": "sdkwork-ai/sdkwork-search",
+      "refInput": "SDKWORK_SEARCH_REF"
+    },
+    {
+      "id": "sdkwork-ui",
+      "repository": "sdkwork-ai/sdkwork-ui",
+      "refInput": "SDKWORK_UI_REF"
+    },
+    {
+      "id": "sdkwork-utils",
+      "repository": "sdkwork-ai/sdkwork-utils",
+      "refInput": "SDKWORK_UTILS_REF"
+    },
+    {
+      "id": "sdkwork-web-framework",
+      "repository": "sdkwork-ai/sdkwork-web-framework",
+      "refInput": "SDKWORK_WEB_FRAMEWORK_REF"
+    }
+  ],
+  "toolchains": {
+    "node": "22",
+    "pnpm": "10.33.0",
+    "rust": "stable"
+  },
+  "lifecycle": {
+    "install": [
+      {
+        "name": "Install workspace dependencies",
+        "shell": "pwsh",
+        "run": "pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile --config.auto-install-peers=false"
+      }
+    ],
+    "build": [
+      {
+        "name": "Build Rust workspace",
+        "shell": "pwsh",
+        "run": "cargo build --workspace --release"
+      },
+      {
+        "name": "Build Plugins PC web bundle",
+        "shell": "pwsh",
+        "run": "pnpm --dir apps/sdkwork-plugins-pc build"
+      }
+    ],
+    "package": [
+      {
+        "name": "Package Plugins API server binaries",
+        "shell": "pwsh",
+        "run": "cargo build --release -p sdkwork-api-plugins-standalone-gateway"
+      },
+      {
+        "name": "Build Plugins PC web bundle",
+        "shell": "pwsh",
+        "run": "pnpm --dir apps/sdkwork-plugins-pc build"
+      }
+    ],
+    "validate": [
+      {
+        "name": "Validate Plugins contracts",
+        "shell": "pwsh",
+        "run": "pnpm verify"
+      }
+    ]
+  },
+  "targets": [
+    {
+      "id": "linux-x64-standalone-server-tar-gz",
+      "profile": "server",
+      "platform": "linux",
+      "architecture": "x64",
+      "formats": [
+        "tar.gz"
+      ],
+      "runner": "ubuntu-24.04",
+      "outputGlobs": [
+        "target/release/sdkwork-api-mcp-standalone-gateway*"
+      ],
+      "deploymentProfile": "standalone",
+      "runtimeTarget": "server"
+    },
+    {
+      "id": "web-universal-cloud-browser-zip",
+      "profile": "browser",
+      "platform": "web",
+      "architecture": "universal",
+      "formats": [
+        "zip"
+      ],
+      "runner": "ubuntu-24.04",
+      "outputGlobs": [
+        "apps/sdkwork-mcp-pc/dist/**",
+        "apps/sdkwork-mcp-h5/dist/**"
+      ],
+      "deploymentProfile": "cloud",
+      "runtimeTarget": "browser"
+    }
+  ]
+}

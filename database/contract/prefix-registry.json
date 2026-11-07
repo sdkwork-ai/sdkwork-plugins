@@ -3,7 +3,7 @@
   "kind": "sdkwork.database.prefix-registry",
   "prefixes": [
     {
-      "prefix": "ai_plugin_",
+      "prefix": "ai_plugin",
       "owner": "plugins-platform",
       "domain": "plugins"
     }

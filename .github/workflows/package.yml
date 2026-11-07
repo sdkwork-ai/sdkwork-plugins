@@ -1,0 +1,125 @@
+name: Package Application
+
+on:
+  push:
+    tags:
+      - v*
+      - '*.*.*'
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag or source ref to package.'
+        required: true
+        default: v0.1.0
+      package_version:
+        description: 'Package version used in artifact names and manifests.'
+        required: true
+        default: 0.1.0
+      deployment_profile:
+        description: 'Deployment profile filter.'
+        required: true
+        type: choice
+        options:
+          - all
+          - standalone
+          - cloud
+      runtime_target:
+        description: 'Runtime target filter.'
+        required: true
+        type: choice
+        options:
+          - all
+          - browser
+          - server
+          - container
+          - test-runner
+      platform:
+        description: 'Platform filter.'
+        required: true
+        type: choice
+        options:
+          - all
+          - linux
+          - windows
+          - web
+          - container
+      architecture:
+        description: 'Architecture filter.'
+        required: true
+        type: choice
+        options:
+          - all
+          - x64
+          - arm64
+          - wasm32
+          - noarch
+      profile:
+        description: 'Package profile filter.'
+        required: true
+        type: choice
+        options:
+          - all
+          - browser
+          - server
+          - desktop
+          - container
+          - test
+      variant:
+        description: 'Package variant filter.'
+        required: true
+        default: all
+      format:
+        description: 'Package format filter.'
+        required: true
+        default: all
+      deploy:
+        description: 'Run configured deployment environments after packaging.'
+        required: true
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  package:
+    uses: sdkwork-ai/sdkwork-github-workflow/.github/workflows/sdkwork-package.yml@v1
+    with:
+      config_path: agent.workflow.json
+      tag: ${{ github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
+      package_version: ${{ github.event.inputs.package_version || github.event.release.tag_name || github.ref_name }}
+      deployment_profile: ${{ github.event.inputs.deployment_profile || 'all' }}
+      runtime_target: ${{ github.event.inputs.runtime_target || 'all' }}
+      platform: ${{ github.event.inputs.platform || 'all' }}
+      architecture: ${{ github.event.inputs.architecture || 'all' }}
+      profile: ${{ github.event.inputs.profile || 'all' }}
+      variant: ${{ github.event.inputs.variant || 'all' }}
+      format: ${{ github.event.inputs.format || 'all' }}
+      publish_release: true
+      upload_artifact: true
+      deploy: ${{ github.event.inputs.deploy == 'true' || github.event_name == 'release' }}
+      retention_days: 30
+      framework_ref: v1
+      dependency_refs_json: >-
+        {
+                    "SDKWORK_APPBASE_REF": "${{ vars.SDKWORK_APPBASE_REF }}",
+                    "SDKWORK_APP_TOPOLOGY_REF": "${{ vars.SDKWORK_APP_TOPOLOGY_REF }}",
+                    "SDKWORK_CORE_REF": "${{ vars.SDKWORK_CORE_REF }}",
+                    "SDKWORK_DATABASE_REF": "${{ vars.SDKWORK_DATABASE_REF }}",
+                    "SDKWORK_DRIVE_REF": "${{ vars.SDKWORK_DRIVE_REF }}",
+                    "SDKWORK_IAM_REF": "${{ vars.SDKWORK_IAM_REF }}",
+                    "SDKWORK_ID_REF": "${{ vars.SDKWORK_ID_REF }}",
+                    "SDKWORK_SDK_COMMONS_REF": "${{ vars.SDKWORK_SDK_COMMONS_REF }}",
+                    "SDKWORK_SDK_GENERATOR_REF": "${{ vars.SDKWORK_SDK_GENERATOR_REF }}",
+                    "SDKWORK_SEARCH_REF": "${{ vars.SDKWORK_SEARCH_REF }}",
+                    "SDKWORK_UI_REF": "${{ vars.SDKWORK_UI_REF }}",
+                    "SDKWORK_UTILS_REF": "${{ vars.SDKWORK_UTILS_REF }}",
+                    "SDKWORK_WEB_FRAMEWORK_REF": "${{ vars.SDKWORK_WEB_FRAMEWORK_REF }}"
+        }
+    secrets: inherit

@@ -1,0 +1,60 @@
+{
+ "schemaVersion": 1,
+ "kind": "sdkwork.component.spec",
+ "component": {
+  "name": "sdkwork-api-plugins-standalone-gateway",
+  "displayName": "SDKWork Plugins Standalone Gateway",
+  "version": "0.1.0",
+  "type": "rust-standalone-gateway-crate",
+  "root": "crates/sdkwork-api-plugins-standalone-gateway",
+  "domain": "intelligence",
+  "capability": "plugins",
+  "surface": "application.public-ingress",
+  "languages": [
+   "rust"
+  ],
+  "manifests": [
+   "Cargo.toml"
+  ]
+ },
+ "contracts": {
+  "layerRole": "runtime-gateway",
+  "publicExports": [
+   "src/lib.rs#serve_router"
+  ],
+  "runtimeEntrypoints": [
+   "src/bin/app_main.rs"
+  ],
+  "canonicalSpecs": [
+   {
+    "file": "API_ASSEMBLY_SPEC.md",
+    "path": "../../../../sdkwork-specs/API_ASSEMBLY_SPEC.md",
+    "purpose": "Thin-host dependency rules (§6.1): no route/service/repository crates."
+   },
+   {
+    "file": "APPLICATION_GATEWAY_SPEC.md",
+    "path": "../../../../sdkwork-specs/APPLICATION_GATEWAY_SPEC.md",
+    "purpose": "Canonical standalone host contract."
+   }
+  ],
+  "providedPorts": [],
+  "requiredPorts": [
+   {
+    "name": "pluginsApiAssembly",
+    "export": "sdkwork_api_plugins_assembly::assemble_api_router",
+    "provider": "sdkwork-api-plugins-assembly"
+   }
+  ],
+  "configKeys": [
+   "SDKWORK_PLUGINS_APPLICATION_PUBLIC_INGRESS_BIND",
+   "SDKWORK_DATABASE_URL",
+   "SDKWORK_ENVIRONMENT",
+   "SDKWORK_CORS_ALLOWED_ORIGINS"
+  ]
+ },
+ "verification": {
+  "commands": [
+   "cargo check -p sdkwork-api-plugins-standalone-gateway"
+  ]
+ }
+}

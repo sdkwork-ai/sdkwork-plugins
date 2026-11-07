@@ -1,0 +1,32 @@
+{
+ "schemaVersion": 1,
+ "kind": "sdkwork.component.spec",
+ "component": {
+  "name": "sdkwork-plugins",
+  "displayName": "SDKWork Plugins",
+  "version": "0.1.0",
+  "type": "application-root",
+  "root": "sdkwork-plugins",
+  "domain": "intelligence",
+  "capability": "plugins",
+  "languages": [
+   "rust",
+   "typescript"
+  ],
+  "manifests": [
+   "agent.app.config.json",
+   "package.json",
+   "Cargo.toml"
+  ]
+ },
+ "contracts": {
+  "runtimeEntrypoints": [
+   "crates/sdkwork-api-plugins-standalone-gateway"
+  ],
+  "configKeys": [
+   "SDKWORK_DATABASE_URL",
+   "SDKWORK_DATABASE_SCHEMA",
+   "SDKWORK_PLUGINS_APPLICATION_PUBLIC_INGRESS_BIND"
+  ]
+ }
+}

@@ -6,7 +6,16 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    dependencies:
+      '@sdkwork/app-topology':
+        specifier: workspace:*
+        version: link:../sdkwork-app-topology
+      '@sdkwork/utils':
+        specifier: workspace:*
+        version: link:../sdkwork-utils/packages/sdkwork-utils-typescript
+
+  ../sdkwork-app-topology: {}
 
   ../sdkwork-utils/packages/sdkwork-utils-typescript:
     devDependencies:

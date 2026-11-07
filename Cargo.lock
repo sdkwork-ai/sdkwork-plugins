@@ -1999,6 +1999,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkwork-api-plugins-standalone-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "sdkwork-api-plugins-assembly",
+ "sdkwork-iam-web-adapter",
+ "sdkwork-web-bootstrap",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "sdkwork-database-config"
 version = "0.1.0"
 dependencies = [

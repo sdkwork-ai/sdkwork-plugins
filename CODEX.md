@@ -1,1 +1,1 @@
-See [AGENTS.md](AGENTS.md). This shim exists for tool compatibility and must not duplicate rules.
+See [AGENTS.md](AGENTS.md). This shim exists for tool compatibility and must not duplicate rules. Canonical SDKWORK specs: `../sdkwork-specs/` (entry: `../sdkwork-specs/README.md`, soul: `../sdkwork-specs/SOUL.md`).
