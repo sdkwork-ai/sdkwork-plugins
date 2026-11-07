@@ -24,3 +24,9 @@ temp/
 .next/
 build/
 target/
+
+# TypeScript compiler output emitted next to SDK sources (build artifacts, never commit)
+sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.js
+sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.js.map
+sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.d.ts
+sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.d.ts.map
