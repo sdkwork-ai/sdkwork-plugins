@@ -30,3 +30,6 @@ sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.js
 sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.js.map
 sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.d.ts
 sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.d.ts.map
+
+# Logs (never commit)
+*.log
