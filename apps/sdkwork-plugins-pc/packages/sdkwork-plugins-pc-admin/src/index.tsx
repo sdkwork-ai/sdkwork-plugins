@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 
 import { isBlank, trim } from '@sdkwork/utils';
 import type {
+  PluginArtifactSource,
   PluginCategoryRecord,
   PluginRecord,
 } from '@sdkwork/plugins-backend-sdk';
@@ -9,6 +10,7 @@ import type {
 import {
   createPlugin,
   deletePlugin,
+  getPluginsAdminDriveSdkClient,
   listPluginCategories,
   listPlugins,
   updatePlugin,
@@ -16,6 +18,10 @@ import {
   type PluginsAdminListParams,
 } from './pluginsAdminService.ts';
 import { usePluginsAdminCopy, type PluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
+import { ArtifactSourceField } from './components/ArtifactSourceField.tsx';
+import { CategorySelect } from './components/CategorySelect.tsx';
+import { RoleMultiSelect } from './components/RoleMultiSelect.tsx';
+import { SurfaceDrawer } from './components/SurfaceOverlay.tsx';
 
 const IMPLEMENTATION_OPTIONS = [
   'sdkwork-native',
@@ -95,6 +101,29 @@ function parseManifest(
   } catch {
     return copy.errors.manifestNotJson;
   }
+}
+
+const INPUT_CLASS =
+  'w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60';
+const LABEL_TEXT_CLASS = 'text-xs font-medium text-zinc-400';
+const SECONDARY_BUTTON_CLASS =
+  'rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700/60 disabled:opacity-60';
+const PRIMARY_BUTTON_CLASS =
+  'rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60';
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm">
+      <span className={LABEL_TEXT_CLASS}>{label}</span>
+      {children}
+    </label>
+  );
 }
 
 /**
@@ -302,10 +331,11 @@ export function PluginsPage() {
       </div>
 
       {createOpen ? (
-        <CreatePluginModal
+        <PluginEditorDrawer
+          mode="create"
           categories={categories}
           onClose={() => setCreateOpen(false)}
-          onCreate={async (body) => {
+          onSubmit={async (body) => {
             const succeeded = await runAction(
               () => createPlugin(body),
               copy.plugins.notices.created,
@@ -317,13 +347,14 @@ export function PluginsPage() {
         />
       ) : null}
       {editTarget ? (
-        <EditPluginModal
+        <PluginEditorDrawer
+          mode="edit"
           record={editTarget}
           categories={categories}
           onClose={() => setEditTarget(null)}
-          onUpdate={async (pluginKey, body) => {
+          onSubmit={async (body) => {
             const succeeded = await runAction(
-              () => updatePlugin(pluginKey, body),
+              () => updatePlugin(editTarget.pluginKey, body),
               copy.plugins.notices.updated(editTarget.name),
             );
             if (succeeded) {
@@ -336,231 +367,60 @@ export function PluginsPage() {
   );
 }
 
-type CreatePluginModalProps = {
-  categories: PluginCategoryRecord[];
-  onClose: () => void;
-  onCreate: (body: Parameters<typeof createPlugin>[0]) => Promise<unknown>;
-};
-
-function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalProps) {
-  const copy = usePluginsAdminCopy();
-  const [pluginKey, setPluginKey] = useState('');
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryCode, setCategoryCode] = useState('');
-  const [versionLabel, setVersionLabel] = useState('0.0.1');
-  const [provider, setProvider] = useState('');
-  const [implementationType, setImplementationType] = useState<ImplementationOption>('sdkwork-native');
-  const [visibility, setVisibility] = useState<VisibilityOption>('tenant');
-  const [manifest, setManifest] = useState('{}');
-  const [tags, setTags] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const parsedManifest = parseManifest(manifest, copy);
-    if (typeof parsedManifest === 'string') {
-      setFormError(parsedManifest);
-      return;
+type PluginEditorDrawerProps =
+  | {
+      mode: 'create';
+      categories: PluginCategoryRecord[];
+      onClose: () => void;
+      onSubmit: (body: Parameters<typeof createPlugin>[0]) => Promise<unknown>;
     }
-    setSubmitting(true);
-    setFormError(null);
-    void onCreate({
-      pluginKey: trim(pluginKey),
-      name: trim(name),
-      description: isBlank(description) ? undefined : trim(description),
-      categoryCode: isBlank(categoryCode) ? undefined : trim(categoryCode),
-      versionLabel: isBlank(versionLabel) ? undefined : trim(versionLabel),
-      provider: isBlank(provider) ? undefined : trim(provider),
-      implementationType,
-      visibility,
-      manifest: parsedManifest,
-      tags: parseTags(tags),
-      allowedRoleCodes: [],
-    })
-      .catch((cause: unknown) => {
-        setFormError(errorMessage(cause));
-      })
-      .finally(() => {
-        setSubmitting(false);
-      });
-  };
+  | {
+      mode: 'edit';
+      record: PluginRecord;
+      categories: PluginCategoryRecord[];
+      onClose: () => void;
+      onSubmit: (body: Parameters<typeof updatePlugin>[1]) => Promise<unknown>;
+    };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form
-        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-900"
-        onSubmit={submit}
-      >
-        <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">{copy.pluginForm.createTitle}</h2>
-        <div className="grid gap-3">
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.pluginKey}</span>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={pluginKey}
-              onChange={(event) => setPluginKey(event.target.value)}
-              placeholder={copy.pluginForm.placeholders.pluginKey}
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.name}</span>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.description}</span>
-            <textarea
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={2}
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.category}</span>
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={categoryCode}
-                onChange={(event) => setCategoryCode(event.target.value)}
-              >
-                <option value="">{copy.pluginForm.uncategorized}</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.categoryCode}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.versionLabel}</span>
-              <input
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={versionLabel}
-                onChange={(event) => setVersionLabel(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.implementation}</span>
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={implementationType}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (isImplementationOption(next)) {
-                    setImplementationType(next);
-                  }
-                }}
-              >
-                {IMPLEMENTATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.visibility}</span>
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={visibility}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (isVisibilityOption(next)) {
-                    setVisibility(next);
-                  }
-                }}
-              >
-                {VISIBILITY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {copy.labels.visibility[option]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.provider}</span>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={provider}
-              onChange={(event) => setProvider(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.tags}</span>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={tags}
-              onChange={(event) => setTags(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.manifest}</span>
-            <textarea
-              className="rounded border border-slate-300 px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800"
-              value={manifest}
-              onChange={(event) => setManifest(event.target.value)}
-              rows={4}
-            />
-          </label>
-        </div>
-        {formError ? (
-          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{formError}</p>
-        ) : null}
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            onClick={onClose}
-          >
-            {copy.pluginForm.cancel}
-          </button>
-          <button
-            type="submit"
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
-            disabled={submitting}
-          >
-            {copy.pluginForm.create}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-type EditPluginModalProps = {
-  record: PluginRecord;
-  categories: PluginCategoryRecord[];
-  onClose: () => void;
-  onUpdate: (
-    pluginKey: string,
-    body: Parameters<typeof updatePlugin>[1],
-  ) => Promise<unknown>;
-};
-
-function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginModalProps) {
+/**
+ * Create/edit drawer shared by both plugin mutations.
+ *
+ * Category and role assignment use the same single-row modal pickers as the
+ * Skills admin surface, and the artifact section uses the same three-mode
+ * source editor (Drive archive, Drive directory, Git repository).
+ */
+function PluginEditorDrawer(props: PluginEditorDrawerProps) {
   const copy = usePluginsAdminCopy();
-  const [name, setName] = useState(record.name);
-  const [description, setDescription] = useState(record.description ?? '');
-  const [categoryCode, setCategoryCode] = useState(record.categoryCode ?? '');
-  const [versionLabel, setVersionLabel] = useState(record.versionLabel);
-  const [provider, setProvider] = useState(record.provider ?? '');
+  const isEdit = props.mode === 'edit';
+  const record = isEdit ? props.record : null;
+  const formId = useId();
+  const [pluginKey, setPluginKey] = useState(record?.pluginKey ?? '');
+  const [name, setName] = useState(record?.name ?? '');
+  const [description, setDescription] = useState(record?.description ?? '');
+  const [categoryCode, setCategoryCode] = useState(record?.categoryCode ?? '');
+  const [versionLabel, setVersionLabel] = useState(record?.versionLabel ?? '0.0.1');
+  const [provider, setProvider] = useState(record?.provider ?? '');
+  const [implementationType, setImplementationType] = useState<ImplementationOption>(
+    record && isImplementationOption(record.implementationType)
+      ? record.implementationType
+      : 'sdkwork-native',
+  );
   const [visibility, setVisibility] = useState<VisibilityOption>(
-    isVisibilityOption(record.visibility) ? record.visibility : 'tenant',
+    record && isVisibilityOption(record.visibility) ? record.visibility : 'tenant',
   );
-  const [installStatus, setInstallStatus] = useState<string>(record.installStatus);
-  const [tags, setTags] = useState(record.tags.join(', '));
-  const [manifest, setManifest] = useState(() => JSON.stringify(record.manifest, null, 2));
+  const [installStatus, setInstallStatus] = useState<string>(
+    record?.installStatus ?? 'available',
+  );
+  const [manifest, setManifest] = useState(
+    record ? JSON.stringify(record.manifest, null, 2) : '{}',
+  );
+  const [tags, setTags] = useState(record?.tags.join(', ') ?? '');
+  const [allowedRoleCodes, setAllowedRoleCodes] = useState<string[]>(
+    record?.allowedRoleCodes ?? [],
+  );
+  const [source, setSource] = useState<PluginArtifactSource | null>(
+    record?.source ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -571,24 +431,40 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
       setFormError(parsedManifest);
       return;
     }
-    const isInstallStatusOption = (INSTALL_STATUS_OPTIONS as readonly string[]).includes(installStatus);
-    if (!isInstallStatusOption) {
+    if (props.mode === 'create' && !source) {
+      setFormError(copy.pluginForm.sourceRequired);
+      return;
+    }
+    if (isEdit && !(INSTALL_STATUS_OPTIONS as readonly string[]).includes(installStatus)) {
       setFormError(copy.errors.installStatusInvalid);
       return;
     }
     setSubmitting(true);
     setFormError(null);
-    void onUpdate(record.pluginKey, {
+    const common = {
       name: trim(name),
       description: isBlank(description) ? undefined : trim(description),
       categoryCode: isBlank(categoryCode) ? undefined : trim(categoryCode),
       versionLabel: trim(versionLabel),
       provider: isBlank(provider) ? undefined : trim(provider),
       visibility,
-      installStatus: installStatus as Parameters<typeof updatePlugin>[1]['installStatus'],
       tags: parseTags(tags),
+      allowedRoleCodes,
       manifest: parsedManifest,
-    })
+      ...(source ? { source } : {}),
+    };
+    const action =
+      props.mode === 'create'
+        ? props.onSubmit({
+            pluginKey: trim(pluginKey),
+            implementationType,
+            ...common,
+          })
+        : props.onSubmit({
+            ...common,
+            installStatus: installStatus as Parameters<typeof updatePlugin>[1]['installStatus'],
+          });
+    void action
       .catch((cause: unknown) => {
         setFormError(errorMessage(cause));
       })
@@ -598,85 +474,93 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form
-        className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-900"
-        onSubmit={submit}
-      >
-        <h2 className="mb-1 text-base font-semibold text-slate-900 dark:text-zinc-100">
-          {copy.pluginForm.editTitle(record.name)}
-        </h2>
-        <p className="mb-4 text-xs text-slate-500 dark:text-zinc-400">
-          {copy.pluginForm.editSubtitle(record.pluginKey, copy.labels.status[record.status])}
-        </p>
-        <div className="grid gap-3">
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.name}</span>
+    <SurfaceDrawer
+      open
+      title={
+        isEdit && record
+          ? copy.pluginForm.editTitle(record.name)
+          : copy.pluginForm.createTitle
+      }
+      description={
+        isEdit && record
+          ? copy.pluginForm.editSubtitle(record.pluginKey, copy.labels.status[record.status])
+          : undefined
+      }
+      onClose={() => {
+        if (!submitting) props.onClose();
+      }}
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            className={SECONDARY_BUTTON_CLASS}
+            onClick={props.onClose}
+            disabled={submitting}
+          >
+            {copy.pluginForm.cancel}
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            className={PRIMARY_BUTTON_CLASS}
+            disabled={submitting || (props.mode === 'create' && !source)}
+          >
+            {isEdit ? copy.pluginForm.save : copy.pluginForm.create}
+          </button>
+        </div>
+      }
+    >
+      <form id={formId} onSubmit={submit} className="grid gap-4">
+        {formError ? (
+          <p role="alert" className="text-sm text-red-400">
+            {formError}
+          </p>
+        ) : null}
+        {!isEdit ? (
+          <Field label={copy.pluginForm.fields.pluginKey}>
             <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              className={INPUT_CLASS}
+              value={pluginKey}
+              onChange={(event) => setPluginKey(event.target.value)}
+              placeholder={copy.pluginForm.placeholders.pluginKey}
               required
             />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.description}</span>
-            <textarea
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={2}
+          </Field>
+        ) : null}
+        <Field label={copy.pluginForm.fields.name}>
+          <input
+            className={INPUT_CLASS}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
+        </Field>
+        <Field label={copy.pluginForm.fields.description}>
+          <textarea
+            className={`${INPUT_CLASS} min-h-20`}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={3}
+          />
+        </Field>
+        <CategorySelect
+          categories={props.categories}
+          value={categoryCode}
+          onChange={setCategoryCode}
+          disabled={submitting}
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={copy.pluginForm.fields.versionLabel}>
+            <input
+              className={INPUT_CLASS}
+              value={versionLabel}
+              onChange={(event) => setVersionLabel(event.target.value)}
             />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.category}</span>
+          </Field>
+          {isEdit ? (
+            <Field label={copy.pluginForm.fields.installStatus}>
               <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={categoryCode}
-                onChange={(event) => setCategoryCode(event.target.value)}
-              >
-                <option value="">{copy.pluginForm.uncategorized}</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.categoryCode}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.versionLabel}</span>
-              <input
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={versionLabel}
-                onChange={(event) => setVersionLabel(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.visibility}</span>
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                value={visibility}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (isVisibilityOption(next)) {
-                    setVisibility(next);
-                  }
-                }}
-              >
-                {VISIBILITY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {copy.labels.visibility[option]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.installStatus}</span>
-              <select
-                className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                className={INPUT_CLASS}
                 value={installStatus}
                 onChange={(event) => setInstallStatus(event.target.value)}
               >
@@ -686,60 +570,83 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
                   </option>
                 ))}
               </select>
-            </label>
-          </div>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.provider}</span>
+            </Field>
+          ) : (
+            <Field label={copy.pluginForm.fields.implementation}>
+              <select
+                className={INPUT_CLASS}
+                value={implementationType}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (isImplementationOption(next)) setImplementationType(next);
+                }}
+              >
+                {IMPLEMENTATION_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={copy.pluginForm.fields.visibility}>
+            <select
+              className={INPUT_CLASS}
+              value={visibility}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (isVisibilityOption(next)) setVisibility(next);
+              }}
+            >
+              {VISIBILITY_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {copy.labels.visibility[option]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={copy.pluginForm.fields.provider}>
             <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              className={INPUT_CLASS}
               value={provider}
               onChange={(event) => setProvider(event.target.value)}
             />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.tags}</span>
-            <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={tags}
-              onChange={(event) => setTags(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.manifest}</span>
-            <textarea
-              className="rounded border border-slate-300 px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800"
-              value={manifest}
-              onChange={(event) => setManifest(event.target.value)}
-              rows={6}
-            />
-          </label>
+          </Field>
         </div>
-        {formError ? (
-          <p className="mt-3 text-sm text-red-600 dark:text-red-400">{formError}</p>
-        ) : null}
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            onClick={onClose}
-          >
-            {copy.pluginForm.cancel}
-          </button>
-          <button
-            type="submit"
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
-            disabled={submitting}
-          >
-            {copy.pluginForm.save}
-          </button>
-        </div>
+        <Field label={copy.pluginForm.fields.tags}>
+          <input
+            className={INPUT_CLASS}
+            value={tags}
+            onChange={(event) => setTags(event.target.value)}
+          />
+        </Field>
+        <RoleMultiSelect
+          value={allowedRoleCodes}
+          onChange={setAllowedRoleCodes}
+          disabled={submitting}
+        />
+        <ArtifactSourceField
+          driveClient={getPluginsAdminDriveSdkClient()}
+          value={source}
+          onChange={setSource}
+          disabled={submitting}
+        />
+        <Field label={copy.pluginForm.fields.manifest}>
+          <textarea
+            className={`${INPUT_CLASS} font-mono text-xs`}
+            value={manifest}
+            onChange={(event) => setManifest(event.target.value)}
+            rows={5}
+          />
+        </Field>
       </form>
-    </div>
+    </SurfaceDrawer>
   );
 }
 
 /**
- * Admin surface for the plugin category registry
  * (`/backend/v3/api/plugin_categories`): list and upsert categories.
  */
 export function PluginCategoriesPage() {

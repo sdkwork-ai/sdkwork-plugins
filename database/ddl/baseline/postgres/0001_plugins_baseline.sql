@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     implementation_type VARCHAR(64) NOT NULL DEFAULT 'sdkwork-native',
     visibility VARCHAR(32) NOT NULL DEFAULT 'tenant',
     manifest_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_json JSONB,
     install_status VARCHAR(32) NOT NULL DEFAULT 'available',
     lifecycle_status SMALLINT NOT NULL DEFAULT 1,
     tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -47,7 +48,11 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     updated_by BIGINT NOT NULL DEFAULT 0,
     deleted_at TIMESTAMPTZ,
     UNIQUE (uuid),
-    UNIQUE (tenant_id, plugin_key)
+    UNIQUE (tenant_id, plugin_key),
+    CONSTRAINT ck_ai_plugin_source
+        CHECK (source_json IS NULL OR jsonb_typeof(source_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_source_kind
+        CHECK (source_json IS NULL OR source_json ->> 'kind' IN ('drive_file', 'drive_directory', 'git'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_tenant

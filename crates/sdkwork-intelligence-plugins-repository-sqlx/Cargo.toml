@@ -22,3 +22,6 @@ sdkwork-plugins-contract = { workspace = true }
 sdkwork-utils-rust = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

@@ -833,8 +833,127 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/PluginArtifactSource"
           }
         }
+      },
+      "PluginArtifactDriveFileSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An archive uploaded to sdkwork-drive. checksumSha256 is the SHA-256 of the archive bytes.",
+        "required": [
+          "kind",
+          "driveUri",
+          "checksumSha256"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "drive_file"
+            ]
+          },
+          "driveUri": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^drive://spaces/[^/]+/nodes/[^/]+$"
+          },
+          "checksumSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sizeBytes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "int64",
+            "pattern": "^[0-9]+$",
+            "x-sdkwork-int64-string": true
+          }
+        }
+      },
+      "PluginArtifactDriveDirectorySource": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "An existing sdkwork-drive folder. The runtime materializes the folder contents as the plugin package.",
+        "required": [
+          "kind",
+          "driveUri"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "drive_directory"
+            ]
+          },
+          "driveUri": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^drive://spaces/[^/]+/nodes/[^/]+$"
+          }
+        }
+      },
+      "PluginArtifactGitSource": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A path inside an https Git repository. Consumers clone the repository at the pinned revision.",
+        "required": [
+          "kind",
+          "repositoryUrl",
+          "repositoryPath"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "git"
+            ]
+          },
+          "repositoryUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?/[^\\s]+$"
+          },
+          "repositoryPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[^\\\\]+$"
+          },
+          "gitRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9._/-]+$"
+          }
+        }
+      },
+      "PluginArtifactSource": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PluginArtifactDriveFileSource"
+          },
+          {
+            "$ref": "#/components/schemas/PluginArtifactDriveDirectorySource"
+          },
+          {
+            "$ref": "#/components/schemas/PluginArtifactGitSource"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        },
+        "description": "Plugin artifact content source: a Drive archive, an existing Drive directory, or a Git repository path."
       }
     }
   },

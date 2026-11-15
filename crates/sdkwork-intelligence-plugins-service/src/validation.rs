@@ -1,6 +1,7 @@
 use sdkwork_plugins_contract::{
-    normalize_allowed_role_codes, PluginCategoryRecord, PluginInstallStatus, PluginLifecycleStatus,
-    PluginImplementationType, PluginRecord, PluginVisibility,
+    normalize_allowed_role_codes, PluginArtifactSource, PluginCategoryRecord,
+    PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginRecord,
+    PluginVisibility,
 };
 use sdkwork_utils_rust::{is_blank, trim};
 
@@ -9,6 +10,10 @@ use crate::{PluginsResult, PluginsServiceError};
 
 const ENTITY_KEY_PATTERN: &str = r"^[a-z0-9][a-z0-9_-]{1,127}$";
 const ROLE_CODE_PATTERN: &str = r"^[a-z][a-z0-9_.-]{0,127}$";
+const SHA256_PATTERN: &str = r"^[0-9a-f]{64}$";
+const GIT_REPOSITORY_URL_PATTERN: &str =
+    r"^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?/[^\s]+$";
+const GIT_REF_PATTERN: &str = r"^[A-Za-z0-9._/-]+$";
 const DEFAULT_VERSION_LABEL: &str = "0.0.1";
 const MAX_ROLE_CODES: usize = 64;
 const MAX_TAGS: usize = 64;
@@ -93,6 +98,96 @@ fn validate_role_codes(role_codes: &[String]) -> PluginsResult<()> {
     Ok(())
 }
 
+fn validate_drive_uri(drive_uri: &str) -> PluginsResult<()> {
+    let drive_uri_pattern = regex_lite::Regex::new(r"^drive://spaces/[^/]+/nodes/[^/]+$")
+        .map_err(|error| PluginsServiceError::Repository(error.to_string()))?;
+    if !drive_uri_pattern.is_match(&trim(drive_uri)) {
+        return Err(PluginsServiceError::InvalidArgument(
+            "drive_uri must be drive://spaces/{spaceId}/nodes/{nodeId}".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_artifact_source(source: &PluginArtifactSource) -> PluginsResult<()> {
+    match source {
+        PluginArtifactSource::DriveFile {
+            drive_uri,
+            checksum_sha256,
+            ..
+        } => {
+            validate_drive_uri(drive_uri)?;
+            let checksum_pattern = regex_lite::Regex::new(SHA256_PATTERN)
+                .map_err(|error| PluginsServiceError::Repository(error.to_string()))?;
+            if !checksum_pattern.is_match(checksum_sha256) {
+                return Err(PluginsServiceError::InvalidArgument(
+                    "checksum_sha256 must be 64 lowercase hexadecimal characters".to_string(),
+                ));
+            }
+        }
+        PluginArtifactSource::DriveDirectory { drive_uri } => {
+            validate_drive_uri(drive_uri)?;
+        }
+        PluginArtifactSource::Git {
+            repository_url,
+            repository_path,
+            git_ref,
+        } => {
+            let url_pattern = regex_lite::Regex::new(GIT_REPOSITORY_URL_PATTERN)
+                .map_err(|error| PluginsServiceError::Repository(error.to_string()))?;
+            let normalized_url = trim(repository_url);
+            if normalized_url.len() > 2048 || !url_pattern.is_match(&normalized_url) {
+                return Err(PluginsServiceError::InvalidArgument(
+                    "repository_url must be an absolute https URL without credentials".to_string(),
+                ));
+            }
+            let normalized_path = trim(repository_path);
+            if normalized_path.is_empty() || normalized_path.len() > 1024 {
+                return Err(PluginsServiceError::InvalidArgument(
+                    "repository_path must contain 1 to 1024 characters".to_string(),
+                ));
+            }
+            if normalized_path.starts_with('/')
+                || normalized_path.contains('\\')
+                || normalized_path.chars().any(char::is_control)
+            {
+                return Err(PluginsServiceError::InvalidArgument(
+                    "repository_path must be a relative POSIX path".to_string(),
+                ));
+            }
+            if normalized_path != "." {
+                for segment in normalized_path.split('/') {
+                    if segment.is_empty() || segment == "." || segment == ".." {
+                        return Err(PluginsServiceError::InvalidArgument(
+                            "repository_path must not contain empty, '.', or '..' segments"
+                                .to_string(),
+                        ));
+                    }
+                }
+            }
+            if let Some(value) = git_ref {
+                let normalized_ref = trim(value);
+                let ref_pattern = regex_lite::Regex::new(GIT_REF_PATTERN)
+                    .map_err(|error| PluginsServiceError::Repository(error.to_string()))?;
+                if normalized_ref.is_empty()
+                    || normalized_ref.len() > 255
+                    || !ref_pattern.is_match(&normalized_ref)
+                    || normalized_ref == "@"
+                    || normalized_ref.contains("..")
+                    || normalized_ref.starts_with('/')
+                    || normalized_ref.ends_with('/')
+                    || normalized_ref.contains("//")
+                {
+                    return Err(PluginsServiceError::InvalidArgument(
+                        "git_ref must be a safe branch, tag, or commit id".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_category_record(record: &PluginCategoryRecord) -> PluginsResult<()> {
     validate_category_code(record.category_code.as_str())?;
     require_name(record.name.as_str(), "category name")
@@ -107,6 +202,9 @@ pub fn validate_plugin_record(record: &PluginRecord) -> PluginsResult<()> {
         ));
     }
     validate_manifest(&record.manifest)?;
+    if let Some(source) = record.source.as_ref() {
+        validate_artifact_source(source)?;
+    }
     validate_tags(&record.tags)?;
     validate_role_codes(&record.allowed_role_codes)?;
     validate_implementation_type(record.implementation_type)?;
@@ -193,7 +291,11 @@ pub fn plugin_record_from_create(
         name: trim(command.name.as_str()),
         description: command.description.clone(),
         category_id: command.category_id,
-        category_code: command.category_code.as_deref().map(trim).filter(|value| !value.is_empty()),
+        category_code: command
+            .category_code
+            .as_deref()
+            .map(trim)
+            .filter(|value| !value.is_empty()),
         version_label: command
             .version_label
             .as_deref()
@@ -209,7 +311,11 @@ pub fn plugin_record_from_create(
             .map(str::to_string),
         implementation_type: command.implementation_type,
         visibility: command.visibility.unwrap_or(PluginVisibility::Tenant),
-        manifest: command.manifest.clone().unwrap_or_else(|| serde_json::json!({})),
+        manifest: command
+            .manifest
+            .clone()
+            .unwrap_or_else(|| serde_json::json!({})),
+        source: command.source.clone(),
         install_status: PluginInstallStatus::Available,
         tags: normalize_tags(&command.tags),
         allowed_role_codes: normalize_allowed_role_codes(&command.allowed_role_codes),
@@ -229,6 +335,9 @@ pub fn validate_update_command(command: &UpdatePluginCommand) -> PluginsResult<(
     }
     if let Some(manifest) = command.manifest.as_ref() {
         validate_manifest(manifest)?;
+    }
+    if let Some(source) = command.source.as_ref() {
+        validate_artifact_source(source)?;
     }
     if let Some(tags) = command.tags.as_ref() {
         validate_tags(tags)?;
@@ -283,6 +392,9 @@ pub fn apply_update(record: &mut PluginRecord, command: &UpdatePluginCommand) {
     }
     if let Some(value) = command.manifest.as_ref() {
         record.manifest = value.clone();
+    }
+    if let Some(value) = command.source.as_ref() {
+        record.source = Some(value.clone());
     }
     if let Some(value) = command.install_status {
         record.install_status = value;

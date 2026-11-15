@@ -6,6 +6,7 @@ import {
   type UpdatePluginCommand,
   type UpsertPluginCategoryCommand,
 } from '@sdkwork/plugins-backend-sdk';
+import type { SdkworkDriveAppClient } from '@sdkwork/drive-app-sdk';
 
 import { resolvePluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
 
@@ -44,6 +45,13 @@ export type {
  */
 export interface PluginsAdminRuntime {
   getBackendSdkClient: () => SdkworkBackendClient;
+  /** Drive client used by the three-mode artifact source editor. */
+  getDriveSdkClient: () => SdkworkDriveAppClient;
+  /**
+   * Optional target space for uploaded plugin archives. When omitted, the
+   * upload service uses the first active space visible to the operator.
+   */
+  getDriveSpaceId?: () => string | undefined;
 }
 
 let runtime: PluginsAdminRuntime | null = null;
@@ -57,6 +65,18 @@ export function getPluginsAdminBackendSdkClient(): SdkworkBackendClient {
     throw new Error(resolvePluginsAdminCopy().errors.runtimeNotConfigured);
   }
   return runtime.getBackendSdkClient();
+}
+
+export function getPluginsAdminDriveSdkClient(): SdkworkDriveAppClient {
+  if (!runtime) {
+    throw new Error(resolvePluginsAdminCopy().errors.runtimeNotConfigured);
+  }
+  return runtime.getDriveSdkClient();
+}
+
+export function getPluginsAdminDriveSpaceId(): string | undefined {
+  const value = runtime?.getDriveSpaceId?.();
+  return value?.trim() ? value.trim() : undefined;
 }
 
 export async function listPluginCategories(

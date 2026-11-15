@@ -1,9 +1,7 @@
 //! Handler-facing helpers re-exported by the crate root. Business logic lives
 //! in the service crate; these thin wrappers keep the HTTP layer declarative.
 
-use sdkwork_intelligence_plugins_service::{
-    PluginsService, UpsertPluginCategoryCommand,
-};
+use sdkwork_intelligence_plugins_service::{PluginsService, UpsertPluginCategoryCommand};
 use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
@@ -11,10 +9,7 @@ use crate::list_query::SdkWorkListQuery;
 use crate::response::{item_data, paginate_items, ApiResult};
 
 /// Blank category record in the shape the service expects on upsert.
-pub fn default_category_record(
-    category_code: String,
-    name: String,
-) -> PluginCategoryRecord {
+pub fn default_category_record(category_code: String, name: String) -> PluginCategoryRecord {
     PluginCategoryRecord {
         id: 0,
         uuid: String::new(),
@@ -49,6 +44,7 @@ pub fn default_plugin_record(
         implementation_type,
         visibility,
         manifest: serde_json::json!({}),
+        source: None,
         install_status: sdkwork_plugins_contract::PluginInstallStatus::Available,
         tags: vec![],
         allowed_role_codes: vec![],
@@ -75,7 +71,9 @@ pub async fn upsert_category<R: sdkwork_intelligence_plugins_service::PluginsRep
     operator_id: u64,
     command: UpsertPluginCategoryCommand,
 ) -> ApiResult<SdkWorkResourceData<PluginCategoryRecord>> {
-    let saved = service.upsert_category(tenant_id, operator_id, command).await?;
+    let saved = service
+        .upsert_category(tenant_id, operator_id, command)
+        .await?;
     Ok(item_data(saved))
 }
 
@@ -95,7 +93,9 @@ pub async fn create_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepos
     operator_id: u64,
     command: sdkwork_intelligence_plugins_service::CreatePluginCommand,
 ) -> ApiResult<SdkWorkResourceData<PluginRecord>> {
-    let created = service.create_plugin(tenant_id, operator_id, command).await?;
+    let created = service
+        .create_plugin(tenant_id, operator_id, command)
+        .await?;
     Ok(item_data(created))
 }
 
@@ -161,7 +161,12 @@ fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<Plu
                 .unwrap_or("")
                 .to_lowercase()
                 .contains(keyword)
-            || item.provider.as_deref().unwrap_or("").to_lowercase().contains(keyword)
+            || item
+                .provider
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains(keyword)
             || item
                 .tags
                 .iter()

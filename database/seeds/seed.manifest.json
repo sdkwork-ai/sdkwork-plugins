@@ -17,6 +17,24 @@
     "zh-CN",
     "en-US"
   ],
+  "profiles": {
+    "minimal": {
+      "common": [
+        "common/001_plugin_categories.sql"
+      ],
+      "locales": {
+        "zh-CN": []
+      }
+    },
+    "standard": {
+      "common": [
+        "common/001_plugin_categories.sql"
+      ],
+      "locales": {
+        "zh-CN": []
+      }
+    }
+  },
   "localeSets": {
     "zh-CN": {
       "version": "1.0.0",

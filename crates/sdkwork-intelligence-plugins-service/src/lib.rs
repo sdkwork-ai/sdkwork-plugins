@@ -5,6 +5,9 @@ mod commands;
 mod in_memory;
 mod validation;
 
+#[cfg(test)]
+mod validation_tests;
+
 use async_trait::async_trait;
 use thiserror::Error;
 
@@ -62,8 +65,7 @@ pub trait PluginsRepository: Send + Sync {
         record: PluginRecord,
     ) -> PluginsResult<PluginRecord>;
 
-    async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str)
-        -> PluginsResult<PluginRecord>;
+    async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord>;
 }
 
 pub struct PluginsService<R: PluginsRepository> {
@@ -107,7 +109,11 @@ impl<R: PluginsRepository> PluginsService<R> {
         self.repository.list_plugins(tenant_id).await
     }
 
-    pub async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {
+    pub async fn get_plugin(
+        &self,
+        tenant_id: u64,
+        plugin_key: &str,
+    ) -> PluginsResult<PluginRecord> {
         validation::validate_plugin_key(plugin_key)?;
         self.repository.get_plugin(tenant_id, plugin_key).await
     }
@@ -119,7 +125,12 @@ impl<R: PluginsRepository> PluginsService<R> {
         command: CreatePluginCommand,
     ) -> PluginsResult<PluginRecord> {
         let record = validation::plugin_record_from_create(tenant_id, operator_id, &command)?;
-        if self.repository.get_plugin(tenant_id, &record.plugin_key).await.is_ok() {
+        if self
+            .repository
+            .get_plugin(tenant_id, &record.plugin_key)
+            .await
+            .is_ok()
+        {
             return Err(PluginsServiceError::InvalidArgument(format!(
                 "plugin_key already exists: {}",
                 record.plugin_key

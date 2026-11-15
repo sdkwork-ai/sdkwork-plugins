@@ -11,6 +11,74 @@ import { useEffect, useState } from 'react';
  * i18n instance.
  */
 const en = {
+  overlay: {
+    close: 'Close',
+  },
+  selection: {
+    searchPlaceholder: 'Search…',
+    noMatch: 'No matching options.',
+    selectedCount: (count: number) => `${count} selected`,
+    clear: 'Clear selection',
+    cancel: 'Cancel',
+    confirm: 'Apply',
+  },
+  roles: {
+    legend: 'Visible to roles',
+    allRoles: 'All roles (default)',
+    customRole: 'Custom role',
+    modalTitle: 'Select visible roles',
+    modalDescription:
+      'The plugin is visible to every selected role. Leave the selection empty to keep it visible to all roles.',
+    labels: {} as Record<string, string>,
+  },
+  artifactSource: {
+    legend: 'Artifact source',
+    hint: 'Choose how the plugin package content is provided.',
+    mode: {
+      driveFile: 'Upload archive',
+      driveDirectory: 'Drive directory',
+      git: 'Git repository',
+    },
+    driveFile: {
+      archive: 'Package archive',
+      chooseHint:
+        'Upload a .zip, .tar, .gz, .tgz or .skillpkg archive through sdkwork-drive.',
+      upload: 'Upload archive',
+      uploading: 'Uploading…',
+      uploaded: (name: string) => `Uploaded: ${name}`,
+      missingFile: 'Select a package archive to upload through sdkwork-drive.',
+      ref: 'Drive artifact',
+    },
+    driveDirectory: {
+      choose: 'Select a directory',
+      placeholder: 'Select a sdkwork-drive directory',
+      selected: (path: string) => `Selected: ${path}`,
+      pickerTitle: 'Select a sdkwork-drive directory',
+      pickerDescription: 'Pick the directory that contains the plugin package.',
+      space: 'Drive space',
+      root: 'Root',
+      empty: 'No folders in this directory.',
+      noSpaces: 'No sdkwork-drive spaces are available.',
+      loading: 'Loading directories…',
+      error: 'Unable to load sdkwork-drive directories.',
+      selectCurrent: 'Select this directory',
+      selectRootHint: 'Open a folder before selecting it.',
+      cancel: 'Cancel',
+      confirm: 'Select directory',
+    },
+    git: {
+      repositoryUrl: 'Git repository URL',
+      repositoryUrlPlaceholder: 'https://github.com/org/repo.git',
+      repositoryPath: 'Path in repository',
+      repositoryPathPlaceholder: 'plugins/my-plugin',
+      gitRef: 'Branch, tag, or commit',
+      gitRefPlaceholder: 'main (optional)',
+      hint: 'Only https clone URLs are supported. The path is relative to the repository root; use . for the root.',
+      invalidUrl: 'Enter a full https Git repository URL.',
+      invalidPath: 'Enter a relative repository path (no leading / or ..).',
+      invalidRef: 'Use a branch, tag, or commit id without spaces or ..',
+    },
+  },
   plugins: {
     title: 'Plugin Management',
     description: 'Managed plugins served through the backend administration API.',
@@ -66,12 +134,16 @@ const en = {
       pluginKey: 'web-search',
     },
     uncategorized: 'Uncategorized',
+    categoryPickerTitle: 'Select plugin category',
+    categoryPickerDescription:
+      'Choose the marketplace category this plugin is filed under.',
     cancel: 'Cancel',
     createTitle: 'Create plugin',
     create: 'Create',
     editTitle: (name: string) => `Edit plugin ${name}`,
     editSubtitle: (pluginKey: string, status: string) => `${pluginKey} · status ${status}`,
     save: 'Save',
+    sourceRequired: 'Select an artifact source before creating the plugin.',
   },
   categories: {
     title: 'Plugin Categories',
@@ -130,13 +202,90 @@ const en = {
     installStatusInvalid: 'Install status must be available, installed, or disabled',
     sortOrderInvalid: 'Sort order must be an integer',
     runtimeNotConfigured:
-      'Plugins admin runtime is not configured: call configurePluginsAdminRuntime({ getBackendSdkClient }) before rendering PluginsPage',
+      'Plugins admin runtime is not configured: call configurePluginsAdminRuntime({ getBackendSdkClient, getDriveSdkClient }) before rendering PluginsPage',
   },
 };
 
 export type PluginsAdminCopy = typeof en;
 
 const zh: PluginsAdminCopy = {
+  overlay: {
+    close: '关闭',
+  },
+  selection: {
+    searchPlaceholder: '搜索…',
+    noMatch: '无匹配项',
+    selectedCount: (count) => `已选 ${count} 项`,
+    clear: '清空选择',
+    cancel: '取消',
+    confirm: '确定',
+  },
+  roles: {
+    legend: '可见角色',
+    allRoles: '全部角色（默认）',
+    customRole: '自定义角色',
+    modalTitle: '选择可见角色',
+    modalDescription: '插件对所选角色可见；不选择任何角色时，默认对全部角色可见。',
+    labels: {
+      app_user: '应用用户',
+      org_admin: '组织管理员',
+      org_assistant: '组织助理',
+      org_auditor: '组织审计员',
+      org_finance: '组织财务',
+      org_operations: '组织运营',
+      platform_system_admin: '平台系统管理员',
+      platform_super_admin: '平台超级管理员',
+      skills_admin_operator: '技能运营管理员',
+      skills_marketplace_user: '技能市场用户',
+    },
+  },
+  artifactSource: {
+    legend: '产物来源',
+    hint: '选择插件包内容的提供方式。',
+    mode: {
+      driveFile: '本地压缩包',
+      driveDirectory: 'Drive 目录',
+      git: 'Git 仓库',
+    },
+    driveFile: {
+      archive: '插件包压缩包',
+      chooseHint: '通过 sdkwork-drive 上传 .zip、.tar、.gz、.tgz 或 .skillpkg 压缩包。',
+      upload: '上传压缩包',
+      uploading: '上传中…',
+      uploaded: (name) => `已上传：${name}`,
+      missingFile: '请选择要通过 sdkwork-drive 上传的插件包压缩包。',
+      ref: 'Drive 产物',
+    },
+    driveDirectory: {
+      choose: '选择目录',
+      placeholder: '选择 sdkwork-drive 目录',
+      selected: (path) => `已选择：${path}`,
+      pickerTitle: '选择 sdkwork-drive 目录',
+      pickerDescription: '选择包含插件包内容的目录。',
+      space: 'Drive 空间',
+      root: '根目录',
+      empty: '该目录下没有子目录。',
+      noSpaces: '没有可用的 sdkwork-drive 空间。',
+      loading: '正在加载目录…',
+      error: '无法加载 sdkwork-drive 目录。',
+      selectCurrent: '选择当前目录',
+      selectRootHint: '请先进入一个目录再选择。',
+      cancel: '取消',
+      confirm: '选择目录',
+    },
+    git: {
+      repositoryUrl: 'Git 仓库地址',
+      repositoryUrlPlaceholder: 'https://github.com/org/repo.git',
+      repositoryPath: '仓库内路径',
+      repositoryPathPlaceholder: 'plugins/my-plugin',
+      gitRef: '分支 / 标签 / 提交',
+      gitRefPlaceholder: 'main（可选）',
+      hint: '仅支持 https 克隆地址；路径相对于仓库根目录，根目录请填写 .。',
+      invalidUrl: '请填写完整的 https Git 仓库地址。',
+      invalidPath: '请填写相对仓库路径（不能以 / 开头，不能包含 ..）。',
+      invalidRef: '请填写不含空格和 .. 的分支、标签或提交标识。',
+    },
+  },
   plugins: {
     title: '插件管理',
     description: '通过后端管理接口提供受管插件。',
@@ -192,12 +341,15 @@ const zh: PluginsAdminCopy = {
       pluginKey: 'web-search',
     },
     uncategorized: '未分类',
+    categoryPickerTitle: '选择插件分类',
+    categoryPickerDescription: '选择该插件归档的市场分类。',
     cancel: '取消',
     createTitle: '创建插件',
     create: '创建',
     editTitle: (name) => `编辑插件 ${name}`,
     editSubtitle: (pluginKey, status) => `${pluginKey} · 状态 ${status}`,
     save: '保存',
+    sourceRequired: '创建插件前，请先选择产物来源。',
   },
   categories: {
     title: '插件分类管理',
@@ -256,7 +408,7 @@ const zh: PluginsAdminCopy = {
     installStatusInvalid: '安装状态必须是 available、installed 或 disabled 之一',
     sortOrderInvalid: '排序值必须是整数',
     runtimeNotConfigured:
-      '插件管理运行时尚未配置：请在渲染 PluginsPage 之前调用 configurePluginsAdminRuntime({ getBackendSdkClient })',
+      '插件管理运行时尚未配置：请在渲染 PluginsPage 之前调用 configurePluginsAdminRuntime({ getBackendSdkClient, getDriveSdkClient })',
   },
 };
 

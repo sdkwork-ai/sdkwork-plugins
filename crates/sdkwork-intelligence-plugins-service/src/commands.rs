@@ -1,7 +1,8 @@
 use serde::Deserialize;
 
 use sdkwork_plugins_contract::{
-    PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
+    PluginArtifactSource, PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
+    PluginVisibility,
 };
 
 /// Admin upsert command for a plugin category (`pluginsAdmin.upsertCategory`).
@@ -29,6 +30,8 @@ pub struct CreatePluginCommand {
     pub visibility: Option<PluginVisibility>,
     /// Plugin manifest as a JSON object; defaults to an empty object.
     pub manifest: Option<serde_json::Value>,
+    /// Package content source. Optional for legacy manifest-only plugins.
+    pub source: Option<PluginArtifactSource>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
@@ -50,6 +53,7 @@ pub struct UpdatePluginCommand {
     pub implementation_type: Option<PluginImplementationType>,
     pub visibility: Option<PluginVisibility>,
     pub manifest: Option<serde_json::Value>,
+    pub source: Option<PluginArtifactSource>,
     pub install_status: Option<PluginInstallStatus>,
     pub tags: Option<Vec<String>>,
     pub allowed_role_codes: Option<Vec<String>>,

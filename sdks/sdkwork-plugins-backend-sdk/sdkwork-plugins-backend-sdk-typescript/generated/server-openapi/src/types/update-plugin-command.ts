@@ -1,3 +1,5 @@
+import type { PluginArtifactSource } from './plugin-artifact-source';
+
 /** Partial update command; omitted fields leave the stored value unchanged. */
 export interface UpdatePluginCommand {
   name?: string;
@@ -15,4 +17,5 @@ export interface UpdatePluginCommand {
   allowedRoleCodes?: string[];
   /** Target entity lifecycle. The deleted state is only reachable through pluginsAdmin.deletePlugin. */
   lifecycleStatus?: 'draft' | 'active' | 'disabled' | 'archived';
+  source?: PluginArtifactSource;
 }

@@ -1,7 +1,7 @@
 use sdkwork_id_core::SnowflakeIdGenerator;
 use sdkwork_intelligence_plugins_service::{PluginsResult, PluginsServiceError};
 use sdkwork_plugins_contract::{
-    PluginCategoryRecord, PluginInstallStatus, PluginLifecycleStatus, PluginImplementationType,
+    PluginCategoryRecord, PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
     PluginRecord, PluginVisibility,
 };
 use sqlx::{PgPool, Row};
@@ -19,8 +19,8 @@ const CATEGORY_SELECT: &str = r#"
 const PLUGIN_SELECT: &str = r#"
     id, uuid, tenant_id, organization_id, plugin_key, name, description, category_id,
     category_code, version_label, provider, implementation_type, visibility, manifest_json,
-    install_status, lifecycle_status, tags_json, allowed_role_codes_json, version, created_at,
-    updated_at, created_by, updated_by, deleted_at
+    source_json, install_status, lifecycle_status, tags_json, allowed_role_codes_json, version,
+    created_at, updated_at, created_by, updated_by, deleted_at
 "#;
 
 fn map_sqlx(error: sqlx::Error) -> PluginsServiceError {
@@ -47,13 +47,15 @@ fn read_json_string(row: &sqlx::postgres::PgRow, field: &str) -> PluginsResult<S
     let value: serde_json::Value = row
         .try_get::<serde_json::Value, _>(field)
         .map_err(map_sqlx)?;
-    serde_json::to_string(&value)
-        .map_err(|error| PluginsServiceError::Repository(format!("encode {field} json failed: {error}")))
+    serde_json::to_string(&value).map_err(|error| {
+        PluginsServiceError::Repository(format!("encode {field} json failed: {error}"))
+    })
 }
 
 fn map_implementation(value: &str) -> PluginsResult<PluginImplementationType> {
-    PluginImplementationType::parse(value)
-        .ok_or_else(|| PluginsServiceError::Repository(format!("invalid implementation_type: {value}")))
+    PluginImplementationType::parse(value).ok_or_else(|| {
+        PluginsServiceError::Repository(format!("invalid implementation_type: {value}"))
+    })
 }
 
 fn map_visibility(value: &str) -> PluginsResult<PluginVisibility> {
@@ -67,8 +69,9 @@ fn map_install_status(value: &str) -> PluginsResult<PluginInstallStatus> {
 }
 
 fn map_lifecycle(value: i16) -> PluginsResult<PluginLifecycleStatus> {
-    PluginLifecycleStatus::from_db_code(value)
-        .ok_or_else(|| PluginsServiceError::Repository(format!("invalid lifecycle status: {value}")))
+    PluginLifecycleStatus::from_db_code(value).ok_or_else(|| {
+        PluginsServiceError::Repository(format!("invalid lifecycle status: {value}"))
+    })
 }
 
 fn row_to_category(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginCategoryRecord> {
@@ -110,6 +113,14 @@ fn row_to_plugin(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginRecord> {
                 .as_str(),
         )?,
         manifest: row.try_get("manifest_json").map_err(map_sqlx)?,
+        source: row
+            .try_get::<Option<serde_json::Value>, _>("source_json")
+            .map_err(map_sqlx)?
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|error| {
+                PluginsServiceError::Repository(format!("invalid source_json: {error}"))
+            })?,
         install_status: map_install_status(
             row.try_get::<String, _>("install_status")
                 .map_err(map_sqlx)?
@@ -270,16 +281,24 @@ pub async fn create_plugin(
     let uuid = resolve_entity_uuid(&record.uuid);
     let tags_json = bind_string_list(&record.tags, "tags")?;
     let role_codes_json = bind_string_list(&record.allowed_role_codes, "allowed_role_codes")?;
+    let source_json = record
+        .source
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|error| {
+            PluginsServiceError::Repository(format!("encode source_json failed: {error}"))
+        })?;
     let query = format!(
         r#"
         INSERT INTO ai_plugin (
             id, uuid, tenant_id, plugin_key, name, description, category_id, category_code,
-            version_label, provider, implementation_type, visibility, manifest_json,
+            version_label, provider, implementation_type, visibility, manifest_json, source_json,
             install_status, lifecycle_status, tags_json, allowed_role_codes_json, version,
             created_by, updated_by
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20
+            $19, $20, $21
         )
         RETURNING {PLUGIN_SELECT}
         "#
@@ -298,6 +317,7 @@ pub async fn create_plugin(
         .bind(record.implementation_type.as_str())
         .bind(record.visibility.as_str())
         .bind(record.manifest.clone())
+        .bind(source_json)
         .bind(record.install_status.as_str())
         .bind(record.lifecycle_status.as_db_code())
         .bind(tags_json)
@@ -320,6 +340,14 @@ pub async fn update_plugin(
 ) -> PluginsResult<PluginRecord> {
     let tags_json = bind_string_list(&record.tags, "tags")?;
     let role_codes_json = bind_string_list(&record.allowed_role_codes, "allowed_role_codes")?;
+    let source_json = record
+        .source
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|error| {
+            PluginsServiceError::Repository(format!("encode source_json failed: {error}"))
+        })?;
     let query = format!(
         r#"
         UPDATE ai_plugin SET
@@ -332,12 +360,13 @@ pub async fn update_plugin(
             implementation_type = $9,
             visibility = $10,
             manifest_json = $11,
-            install_status = $12,
-            lifecycle_status = $13,
-            tags_json = $14,
-            allowed_role_codes_json = $15,
+            source_json = $12,
+            install_status = $13,
+            lifecycle_status = $14,
+            tags_json = $15,
+            allowed_role_codes_json = $16,
             version = ai_plugin.version + 1,
-            updated_by = $16,
+            updated_by = $17,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1 AND plugin_key = $2 AND deleted_at IS NULL
         RETURNING {PLUGIN_SELECT}
@@ -355,6 +384,7 @@ pub async fn update_plugin(
         .bind(record.implementation_type.as_str())
         .bind(record.visibility.as_str())
         .bind(record.manifest.clone())
+        .bind(source_json)
         .bind(record.install_status.as_str())
         .bind(record.lifecycle_status.as_db_code())
         .bind(tags_json)
@@ -394,10 +424,7 @@ pub async fn delete_plugin(
         .ok_or_else(|| PluginsServiceError::NotFound(plugin_key.to_string()))
 }
 
-fn bind_string_list(
-    items: &[String],
-    field: &str,
-) -> PluginsResult<serde_json::Value> {
+fn bind_string_list(items: &[String], field: &str) -> PluginsResult<serde_json::Value> {
     let encoded = string_list_to_json(items, field)?;
     serde_json::from_str(&encoded).map_err(|error| {
         PluginsServiceError::Repository(format!("encode {field} json failed: {error}"))

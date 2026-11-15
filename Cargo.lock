@@ -2209,6 +2209,7 @@ dependencies = [
  "sdkwork-utils-rust",
  "serde_json",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]

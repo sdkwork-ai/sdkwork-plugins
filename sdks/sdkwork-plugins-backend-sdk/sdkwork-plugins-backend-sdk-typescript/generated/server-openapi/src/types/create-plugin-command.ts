@@ -1,3 +1,5 @@
+import type { PluginArtifactSource } from './plugin-artifact-source';
+
 export interface CreatePluginCommand {
   pluginKey: string;
   name: string;
@@ -13,4 +15,5 @@ export interface CreatePluginCommand {
   tags?: string[];
   /** IAM role codes allowed to see and use this plugin. An empty list means every role (the default). */
   allowedRoleCodes?: string[];
+  source?: PluginArtifactSource;
 }

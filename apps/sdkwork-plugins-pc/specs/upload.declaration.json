@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "appId": "sdkwork-plugins",
+  "declarations": [
+    {
+      "appResourceType": "plugin.package_artifact",
+      "appResourceIdKind": "entity",
+      "scene": "plugin-package-upload",
+      "source": "sdkwork-plugins-pc",
+      "uploadProfileCode": "archive",
+      "retention": "long_term",
+      "purpose": "Plugin package archive uploaded by an operator so the plugin can be installed."
+    }
+  ]
+}

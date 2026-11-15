@@ -96,11 +96,27 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "c079ddb4c88a713f11cdb35cca9fcd6f95376e51f6c11f275f000e9e59c7a9b6"
+      "sha256": "c4208c808f78a61a67a351e8a0ad5ec828ad28308efda305f73dcad29bc276ef"
     },
     {
       "path": "src/types/page-info.ts",
       "sha256": "0bf2b44313bc24851eb9ffb6063c1b9eb043e1e5721c8ace8882a3cfa21c932a"
+    },
+    {
+      "path": "src/types/plugin-artifact-drive-directory-source.ts",
+      "sha256": "7e3193602b9540abf7b4b12d0c1ea2bea4499e660ca1a9b04527dc5e768eefe5"
+    },
+    {
+      "path": "src/types/plugin-artifact-drive-file-source.ts",
+      "sha256": "ea0f0f3791f05067b1f3552725e63f12522aafef659a2cbaa9e73afd5ec1cf9d"
+    },
+    {
+      "path": "src/types/plugin-artifact-git-source.ts",
+      "sha256": "33b766fd2863e9b11bde77953b99738bf503cc2b357532fa6c4ec0eaba54826e"
+    },
+    {
+      "path": "src/types/plugin-artifact-source.ts",
+      "sha256": "0f6d8231a72a337967328a7e867068ff593ad4a9fabc29bd982033e961f6e5a2"
     },
     {
       "path": "src/types/plugin-category-record.ts",
@@ -108,7 +124,7 @@
     },
     {
       "path": "src/types/plugin-record.ts",
-      "sha256": "d73c8b6ee0b9e8902cff7388d8e2209f9c3adf8fc52ac78101e050831fd80271"
+      "sha256": "3153e48e5d1b732d1333b5b59d5b11589a975529e6ac2bd1889841bfb3207e86"
     },
     {
       "path": "src/types/plugins-list-categories-response.ts",

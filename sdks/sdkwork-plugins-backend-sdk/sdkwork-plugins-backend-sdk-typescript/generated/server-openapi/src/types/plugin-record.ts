@@ -1,3 +1,5 @@
+import type { PluginArtifactSource } from './plugin-artifact-source';
+
 export interface PluginRecord {
   /** Snowflake entity id serialized as a decimal string (API_SPEC §13.6). */
   id: string;
@@ -22,4 +24,5 @@ export interface PluginRecord {
   version: string;
   createdAt: string;
   updatedAt: string;
+  source?: PluginArtifactSource;
 }

@@ -12,111 +12,36 @@
   "mode": "apply",
   "hasChanges": true,
   "hasDestructiveChanges": false,
-  "changeFingerprint": "bd3fe629d5843bfcec5d63473df62c64f18ef68585bebaeb57cdfcc94f23bc4b",
+  "changeFingerprint": "0a525cd80ccb196d4f00eef305acfc8136045d1da770e58f45077d7f64e1fd96",
   "changeImpact": {
     "schemaVersion": 1,
     "areas": [
-      "api-surface",
-      "models",
-      "runtime",
-      "build-metadata",
-      "publish-workflow",
-      "documentation",
-      "custom-scaffold",
-      "unknown"
+      "models"
     ],
     "details": [
       {
-        "area": "api-surface",
-        "paths": [
-          "src/api/base.ts",
-          "src/api/index.ts",
-          "src/api/paths.ts",
-          "src/api/plugins.ts",
-          "src/http/client.ts",
-          "src/sdk.ts"
-        ]
-      },
-      {
         "area": "models",
         "paths": [
-          "src/types/common.ts",
-          "src/types/field-error.ts",
           "src/types/index.ts",
-          "src/types/page-info.ts",
-          "src/types/plugin-category-record.ts",
-          "src/types/plugin-record.ts",
-          "src/types/plugins-list-categories-response.ts",
-          "src/types/plugins-list-response.ts",
-          "src/types/plugins-retrieve-response.ts",
-          "src/types/problem-detail.ts",
-          "src/types/sdk-work-api-response.ts",
-          "src/types/sdk-work-platform-error-code.ts"
-        ]
-      },
-      {
-        "area": "runtime",
-        "paths": [
-          "src/auth/index.ts",
-          "src/http/client.ts",
-          "src/http/index.ts"
-        ]
-      },
-      {
-        "area": "build-metadata",
-        "paths": [
-          "package.json",
-          "sdkwork-sdk.json",
-          "tsconfig.json"
-        ]
-      },
-      {
-        "area": "publish-workflow",
-        "paths": [
-          "bin/publish-core.mjs",
-          "bin/publish.ps1",
-          "bin/publish.sh",
-          "bin/sdk-gen.bat",
-          "bin/sdk-gen.sh"
-        ]
-      },
-      {
-        "area": "documentation",
-        "paths": [
-          "CHANGELOG.md",
-          "custom/README.md",
-          "README.md"
-        ]
-      },
-      {
-        "area": "custom-scaffold",
-        "paths": [
-          "custom/build-runtime.mjs",
-          "custom/README.md"
-        ]
-      },
-      {
-        "area": "unknown",
-        "paths": [
-          "LICENSE",
-          "src/index.ts"
+          "src/types/plugin-artifact-drive-directory-source.ts",
+          "src/types/plugin-artifact-drive-file-source.ts",
+          "src/types/plugin-artifact-git-source.ts",
+          "src/types/plugin-artifact-source.ts",
+          "src/types/plugin-record.ts"
         ]
       }
     ],
     "requiresVerification": true,
-    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required."
+    "summary": "Detected impact areas: models. Verification is required."
   },
   "executionDecision": {
     "schemaVersion": 1,
-    "riskLevel": "high",
+    "riskLevel": "medium",
     "nextAction": "verify",
     "requiresManualReview": false,
     "applyRequiresExpectedFingerprint": false,
     "summary": "Changes have been applied. Run the required verification plan now.",
     "reasons": [
-      "manual-review-required",
-      "preserved-legacy-files",
-      "unknown-impact",
       "verification-required"
     ]
   },
@@ -128,7 +53,7 @@
         "id": "verify-check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -146,7 +71,7 @@
         "id": "verify-build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -165,13 +90,13 @@
   "verificationPlan": {
     "shouldRun": true,
     "runPhase": "now",
-    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required. Run the required verification commands now against the generated SDK output.",
+    "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
     "steps": [
       {
         "id": "check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -189,7 +114,7 @@
         "id": "build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -219,23 +144,33 @@
     "localVersions": []
   },
   "stats": {
-    "totalFiles": 34,
-    "models": 10,
+    "totalFiles": 38,
+    "models": 14,
     "apis": 1,
-    "types": 12
+    "types": 16
   },
   "warnings": [],
   "syncSummary": {
     "dryRun": false,
     "controlPlaneEnabled": true,
-    "writtenFiles": 34,
-    "skippedScaffoldFiles": 0,
-    "skippedUnchangedGeneratedFiles": 0,
+    "writtenFiles": 6,
+    "skippedScaffoldFiles": 2,
+    "skippedUnchangedGeneratedFiles": 30,
     "deletedGeneratedFiles": 0,
     "changeSummaryPath": ".sdkwork/sdkwork-generator-changes.json",
-    "changeFingerprint": "bd3fe629d5843bfcec5d63473df62c64f18ef68585bebaeb57cdfcc94f23bc4b",
+    "changeFingerprint": "0a525cd80ccb196d4f00eef305acfc8136045d1da770e58f45077d7f64e1fd96",
     "changes": {
       "createdGeneratedFiles": [
+        "src/types/plugin-artifact-drive-directory-source.ts",
+        "src/types/plugin-artifact-drive-file-source.ts",
+        "src/types/plugin-artifact-git-source.ts",
+        "src/types/plugin-artifact-source.ts"
+      ],
+      "updatedGeneratedFiles": [
+        "src/types/index.ts",
+        "src/types/plugin-record.ts"
+      ],
+      "unchangedGeneratedFiles": [
         "bin/publish-core.mjs",
         "bin/publish.ps1",
         "bin/publish.sh",
@@ -257,10 +192,8 @@
         "src/sdk.ts",
         "src/types/common.ts",
         "src/types/field-error.ts",
-        "src/types/index.ts",
         "src/types/page-info.ts",
         "src/types/plugin-category-record.ts",
-        "src/types/plugin-record.ts",
         "src/types/plugins-list-categories-response.ts",
         "src/types/plugins-list-response.ts",
         "src/types/plugins-retrieve-response.ts",
@@ -269,119 +202,45 @@
         "src/types/sdk-work-platform-error-code.ts",
         "tsconfig.json"
       ],
-      "updatedGeneratedFiles": [],
-      "unchangedGeneratedFiles": [],
       "deletedGeneratedFiles": [],
-      "scaffoldedFiles": [
+      "scaffoldedFiles": [],
+      "preservedScaffoldFiles": [
         "custom/build-runtime.mjs",
         "custom/README.md"
       ],
-      "preservedScaffoldFiles": [],
       "backedUpFiles": []
     },
     "impact": {
       "schemaVersion": 1,
       "areas": [
-        "api-surface",
-        "models",
-        "runtime",
-        "build-metadata",
-        "publish-workflow",
-        "documentation",
-        "custom-scaffold",
-        "unknown"
+        "models"
       ],
       "details": [
         {
-          "area": "api-surface",
-          "paths": [
-            "src/api/base.ts",
-            "src/api/index.ts",
-            "src/api/paths.ts",
-            "src/api/plugins.ts",
-            "src/http/client.ts",
-            "src/sdk.ts"
-          ]
-        },
-        {
           "area": "models",
           "paths": [
-            "src/types/common.ts",
-            "src/types/field-error.ts",
             "src/types/index.ts",
-            "src/types/page-info.ts",
-            "src/types/plugin-category-record.ts",
-            "src/types/plugin-record.ts",
-            "src/types/plugins-list-categories-response.ts",
-            "src/types/plugins-list-response.ts",
-            "src/types/plugins-retrieve-response.ts",
-            "src/types/problem-detail.ts",
-            "src/types/sdk-work-api-response.ts",
-            "src/types/sdk-work-platform-error-code.ts"
-          ]
-        },
-        {
-          "area": "runtime",
-          "paths": [
-            "src/auth/index.ts",
-            "src/http/client.ts",
-            "src/http/index.ts"
-          ]
-        },
-        {
-          "area": "build-metadata",
-          "paths": [
-            "package.json",
-            "sdkwork-sdk.json",
-            "tsconfig.json"
-          ]
-        },
-        {
-          "area": "publish-workflow",
-          "paths": [
-            "bin/publish-core.mjs",
-            "bin/publish.ps1",
-            "bin/publish.sh",
-            "bin/sdk-gen.bat",
-            "bin/sdk-gen.sh"
-          ]
-        },
-        {
-          "area": "documentation",
-          "paths": [
-            "CHANGELOG.md",
-            "custom/README.md",
-            "README.md"
-          ]
-        },
-        {
-          "area": "custom-scaffold",
-          "paths": [
-            "custom/build-runtime.mjs",
-            "custom/README.md"
-          ]
-        },
-        {
-          "area": "unknown",
-          "paths": [
-            "LICENSE",
-            "src/index.ts"
+            "src/types/plugin-artifact-drive-directory-source.ts",
+            "src/types/plugin-artifact-drive-file-source.ts",
+            "src/types/plugin-artifact-git-source.ts",
+            "src/types/plugin-artifact-source.ts",
+            "src/types/plugin-record.ts"
           ]
         }
       ],
       "requiresVerification": true,
-      "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required."
+      "summary": "Detected impact areas: models. Verification is required."
     },
     "verificationPlan": {
       "shouldRun": true,
       "runPhase": "now",
-      "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required. Run the required verification commands now against the generated SDK output.",
+      "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
       "steps": [
         {
           "id": "check",
           "title": "Unified package check",
           "required": true,
-          "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+          "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -399,7 +258,7 @@
           "id": "build",
           "title": "Unified package build",
           "required": true,
-          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -417,19 +276,16 @@
     },
     "executionDecision": {
       "schemaVersion": 1,
-      "riskLevel": "high",
+      "riskLevel": "medium",
       "nextAction": "verify",
       "requiresManualReview": false,
       "applyRequiresExpectedFingerprint": false,
       "summary": "Changes have been applied. Run the required verification plan now.",
       "reasons": [
-        "manual-review-required",
-        "preserved-legacy-files",
-        "unknown-impact",
         "verification-required"
       ]
     },
     "backedUpFiles": [],
-    "preservedLegacyFiles": true
+    "preservedLegacyFiles": false
   }
 }

@@ -1,6 +1,45 @@
 use serde::{Deserialize, Serialize};
 
-use crate::enums::{PluginInstallStatus, PluginLifecycleStatus, PluginImplementationType, PluginVisibility};
+use crate::enums::{
+    PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
+};
+
+/// Where a managed plugin's package content comes from.
+///
+/// Mirrors the Skills artifact-source contract so the admin surfaces stay
+/// consistent: a Drive archive, an existing Drive directory, or a Git
+/// repository path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum PluginArtifactSource {
+    #[serde(rename = "drive_file")]
+    DriveFile {
+        #[serde(rename = "driveUri")]
+        drive_uri: String,
+        #[serde(rename = "checksumSha256")]
+        checksum_sha256: String,
+        #[serde(
+            default,
+            rename = "sizeBytes",
+            with = "sdkwork_utils_rust::serde_uint64::option"
+        )]
+        size_bytes: Option<u64>,
+    },
+    #[serde(rename = "drive_directory")]
+    DriveDirectory {
+        #[serde(rename = "driveUri")]
+        drive_uri: String,
+    },
+    #[serde(rename = "git")]
+    Git {
+        #[serde(rename = "repositoryUrl")]
+        repository_url: String,
+        #[serde(rename = "repositoryPath")]
+        repository_path: String,
+        #[serde(default, rename = "gitRef")]
+        git_ref: Option<String>,
+    },
+}
 
 /// Marketplace category grouping managed plugins.
 ///
@@ -46,6 +85,8 @@ pub struct PluginRecord {
     pub visibility: PluginVisibility,
     /// Plugin manifest as a JSON object.
     pub manifest: serde_json::Value,
+    /// Package content source. `None` keeps legacy manifest-only plugins valid.
+    pub source: Option<PluginArtifactSource>,
     pub install_status: PluginInstallStatus,
     pub tags: Vec<String>,
     /// IAM role codes allowed to see and use this plugin. An empty list means
