@@ -7,6 +7,8 @@ import {
   type UpsertPluginCategoryCommand,
 } from '@sdkwork/plugins-backend-sdk';
 
+import { resolvePluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
+
 /**
  * List query parameters of the generated backend client. The generated API
  * barrel does not re-export the `*ListParams` interfaces, so the type is
@@ -52,9 +54,7 @@ export function configurePluginsAdminRuntime(next: PluginsAdminRuntime): void {
 
 export function getPluginsAdminBackendSdkClient(): SdkworkBackendClient {
   if (!runtime) {
-    throw new Error(
-      'Plugins admin runtime is not configured: call configurePluginsAdminRuntime({ getBackendSdkClient }) before rendering PluginsPage',
-    );
+    throw new Error(resolvePluginsAdminCopy().errors.runtimeNotConfigured);
   }
   return runtime.getBackendSdkClient();
 }

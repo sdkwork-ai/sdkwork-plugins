@@ -15,6 +15,7 @@ import {
   upsertPluginCategory,
   type PluginsAdminListParams,
 } from './pluginsAdminService.ts';
+import { usePluginsAdminCopy, type PluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
 
 const IMPLEMENTATION_OPTIONS = [
   'sdkwork-native',
@@ -36,25 +37,27 @@ type ImplementationOption = (typeof IMPLEMENTATION_OPTIONS)[number];
 type VisibilityOption = (typeof VISIBILITY_OPTIONS)[number];
 type LifecycleTarget = (typeof LIFECYCLE_TARGETS)[number];
 
+type TransitionLabelKey = 'activate' | 'disable' | 'archive';
+
 type StatusTransition = {
-  label: string;
+  label: TransitionLabelKey;
   targetStatus: LifecycleTarget;
 };
 
 const STATUS_TRANSITIONS: Record<string, readonly StatusTransition[]> = {
   draft: [
-    { label: 'Activate', targetStatus: 'active' },
-    { label: 'Archive', targetStatus: 'archived' },
+    { label: 'activate', targetStatus: 'active' },
+    { label: 'archive', targetStatus: 'archived' },
   ],
   active: [
-    { label: 'Disable', targetStatus: 'disabled' },
-    { label: 'Archive', targetStatus: 'archived' },
+    { label: 'disable', targetStatus: 'disabled' },
+    { label: 'archive', targetStatus: 'archived' },
   ],
   disabled: [
-    { label: 'Activate', targetStatus: 'active' },
-    { label: 'Archive', targetStatus: 'archived' },
+    { label: 'activate', targetStatus: 'active' },
+    { label: 'archive', targetStatus: 'archived' },
   ],
-  archived: [{ label: 'Activate', targetStatus: 'active' }],
+  archived: [{ label: 'activate', targetStatus: 'active' }],
 };
 
 function isImplementationOption(value: string): value is ImplementationOption {
@@ -76,18 +79,21 @@ function parseTags(value: string): string[] {
     .filter((tag) => tag.length > 0);
 }
 
-function parseManifest(value: string): Record<string, unknown> | string {
+function parseManifest(
+  value: string,
+  copy: PluginsAdminCopy,
+): Record<string, unknown> | string {
   if (isBlank(value)) {
     return {};
   }
   try {
     const parsed: unknown = JSON.parse(value);
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return 'Manifest must be a JSON object';
+      return copy.errors.manifestNotObject;
     }
     return parsed as Record<string, unknown>;
   } catch {
-    return 'Manifest is not valid JSON';
+    return copy.errors.manifestNotJson;
   }
 }
 
@@ -100,6 +106,7 @@ function parseManifest(value: string): Record<string, unknown> | string {
  * before this page renders; the block never constructs transport itself.
  */
 export function PluginsPage() {
+  const copy = usePluginsAdminCopy();
   const [records, setRecords] = useState<PluginRecord[]>([]);
   const [categories, setCategories] = useState<PluginCategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,26 +163,26 @@ export function PluginsPage() {
   const handleDelete = useCallback(
     (record: PluginRecord) => {
       const confirmed = window.confirm(
-        `Delete plugin ${record.name} (${record.pluginKey})? The record is soft-deleted and leaves the catalog.`,
+        copy.plugins.confirmDelete(record.name, record.pluginKey),
       );
       if (!confirmed) {
         return;
       }
       void runAction(
         () => deletePlugin(record.pluginKey),
-        `Plugin ${record.name} deleted`,
+        copy.plugins.notices.deleted(record.name),
       );
     },
-    [runAction],
+    [runAction, copy],
   );
 
   return (
     <section className="embedded-fill-page">
       <header className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">Plugin Management</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">{copy.plugins.title}</h1>
           <p className="text-sm text-slate-500 dark:text-zinc-400">
-            Managed plugins served through the backend administration API.
+            {copy.plugins.description}
           </p>
         </div>
         <button
@@ -183,7 +190,7 @@ export function PluginsPage() {
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
           onClick={() => setCreateOpen(true)}
         >
-          New plugin
+          {copy.plugins.newPlugin}
         </button>
       </header>
 
@@ -201,22 +208,22 @@ export function PluginsPage() {
       <div className="data-surface">
         <div className="table-frame">
           {loading ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">Loading plugins…</p>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.plugins.loading}</p>
           ) : records.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">No managed plugins yet</p>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.plugins.empty}</p>
           ) : (
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
                 <tr>
-                  <th className="px-3 py-2">Plugin</th>
-                  <th className="px-3 py-2">Category</th>
-                  <th className="px-3 py-2">Implementation</th>
-                  <th className="px-3 py-2">Visibility</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Install</th>
-                  <th className="px-3 py-2">Version</th>
-                  <th className="px-3 py-2">Updated</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">{copy.plugins.table.plugin}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.category}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.implementation}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.visibility}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.status}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.install}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.version}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.updated}</th>
+                  <th className="px-3 py-2">{copy.plugins.table.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,9 +237,9 @@ export function PluginsPage() {
                       {record.categoryCode ?? '—'}
                     </td>
                     <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.implementationType}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.visibility}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.status}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.installStatus}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.visibility[record.visibility]}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.status[record.status]}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.installStatus[record.installStatus]}</td>
                     <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.versionLabel}</td>
                     <td className="px-3 py-2 text-xs text-slate-500 dark:text-zinc-400">{record.updatedAt}</td>
                     <td className="px-3 py-2">
@@ -242,7 +249,7 @@ export function PluginsPage() {
                           className="rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                           onClick={() => setEditTarget(record)}
                         >
-                          Edit
+                          {copy.plugins.actions.edit}
                         </button>
                         {(STATUS_TRANSITIONS[record.status] ?? []).map((transition) => (
                           <button
@@ -255,11 +262,14 @@ export function PluginsPage() {
                                   updatePlugin(record.pluginKey, {
                                     lifecycleStatus: transition.targetStatus,
                                   }),
-                                `Plugin ${record.name} is now ${transition.targetStatus}`,
+                                copy.plugins.notices.statusChanged(
+                                  record.name,
+                                  copy.labels.status[transition.targetStatus],
+                                ),
                               )
                             }
                           >
-                            {transition.label}
+                            {copy.plugins.transitions[transition.label]}
                           </button>
                         ))}
                         <button
@@ -267,7 +277,7 @@ export function PluginsPage() {
                           className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
                           onClick={() => handleDelete(record)}
                         >
-                          Delete
+                          {copy.plugins.actions.delete}
                         </button>
                       </div>
                     </td>
@@ -278,7 +288,7 @@ export function PluginsPage() {
           )}
         </div>
         <label className="mt-3 grid max-w-xs gap-1 text-sm">
-          <span className="text-slate-600 dark:text-zinc-300">Filter by keyword</span>
+          <span className="text-slate-600 dark:text-zinc-300">{copy.plugins.filterLabel}</span>
           <input
             className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
             value={listParams?.q ?? ''}
@@ -286,7 +296,7 @@ export function PluginsPage() {
               const keyword = event.target.value;
               setListParams(keyword.trim().length > 0 ? { q: keyword } : undefined);
             }}
-            placeholder="name, key, tag, provider"
+            placeholder={copy.plugins.filterPlaceholder}
           />
         </label>
       </div>
@@ -296,7 +306,10 @@ export function PluginsPage() {
           categories={categories}
           onClose={() => setCreateOpen(false)}
           onCreate={async (body) => {
-            const succeeded = await runAction(() => createPlugin(body), 'Plugin created');
+            const succeeded = await runAction(
+              () => createPlugin(body),
+              copy.plugins.notices.created,
+            );
             if (succeeded) {
               setCreateOpen(false);
             }
@@ -311,7 +324,7 @@ export function PluginsPage() {
           onUpdate={async (pluginKey, body) => {
             const succeeded = await runAction(
               () => updatePlugin(pluginKey, body),
-              `Plugin ${editTarget.name} updated`,
+              copy.plugins.notices.updated(editTarget.name),
             );
             if (succeeded) {
               setEditTarget(null);
@@ -330,6 +343,7 @@ type CreatePluginModalProps = {
 };
 
 function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalProps) {
+  const copy = usePluginsAdminCopy();
   const [pluginKey, setPluginKey] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -345,7 +359,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const parsedManifest = parseManifest(manifest);
+    const parsedManifest = parseManifest(manifest, copy);
     if (typeof parsedManifest === 'string') {
       setFormError(parsedManifest);
       return;
@@ -379,20 +393,20 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
         className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-900"
         onSubmit={submit}
       >
-        <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">Create plugin</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">{copy.pluginForm.createTitle}</h2>
         <div className="grid gap-3">
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Plugin key</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.pluginKey}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={pluginKey}
               onChange={(event) => setPluginKey(event.target.value)}
-              placeholder="web-search"
+              placeholder={copy.pluginForm.placeholders.pluginKey}
               required
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Name</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.name}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={name}
@@ -401,7 +415,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Description</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.description}</span>
             <textarea
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={description}
@@ -411,13 +425,13 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Category</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.category}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={categoryCode}
                 onChange={(event) => setCategoryCode(event.target.value)}
               >
-                <option value="">Uncategorized</option>
+                <option value="">{copy.pluginForm.uncategorized}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.categoryCode}>
                     {category.name}
@@ -426,7 +440,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
               </select>
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Version label</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.versionLabel}</span>
               <input
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={versionLabel}
@@ -436,7 +450,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Implementation</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.implementation}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={implementationType}
@@ -455,7 +469,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
               </select>
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Visibility</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.visibility}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={visibility}
@@ -468,14 +482,14 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
               >
                 {VISIBILITY_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {copy.labels.visibility[option]}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Provider</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.provider}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={provider}
@@ -483,7 +497,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Tags (comma separated)</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.tags}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={tags}
@@ -491,7 +505,7 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Manifest (JSON object)</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.manifest}</span>
             <textarea
               className="rounded border border-slate-300 px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800"
               value={manifest}
@@ -509,14 +523,14 @@ function CreatePluginModal({ categories, onClose, onCreate }: CreatePluginModalP
             className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
             onClick={onClose}
           >
-            Cancel
+            {copy.pluginForm.cancel}
           </button>
           <button
             type="submit"
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
             disabled={submitting}
           >
-            Create
+            {copy.pluginForm.create}
           </button>
         </div>
       </form>
@@ -535,6 +549,7 @@ type EditPluginModalProps = {
 };
 
 function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginModalProps) {
+  const copy = usePluginsAdminCopy();
   const [name, setName] = useState(record.name);
   const [description, setDescription] = useState(record.description ?? '');
   const [categoryCode, setCategoryCode] = useState(record.categoryCode ?? '');
@@ -551,14 +566,14 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const parsedManifest = parseManifest(manifest);
+    const parsedManifest = parseManifest(manifest, copy);
     if (typeof parsedManifest === 'string') {
       setFormError(parsedManifest);
       return;
     }
     const isInstallStatusOption = (INSTALL_STATUS_OPTIONS as readonly string[]).includes(installStatus);
     if (!isInstallStatusOption) {
-      setFormError('Install status must be available, installed, or disabled');
+      setFormError(copy.errors.installStatusInvalid);
       return;
     }
     setSubmitting(true);
@@ -589,14 +604,14 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
         onSubmit={submit}
       >
         <h2 className="mb-1 text-base font-semibold text-slate-900 dark:text-zinc-100">
-          Edit plugin {record.name}
+          {copy.pluginForm.editTitle(record.name)}
         </h2>
         <p className="mb-4 text-xs text-slate-500 dark:text-zinc-400">
-          {record.pluginKey} · status {record.status}
+          {copy.pluginForm.editSubtitle(record.pluginKey, copy.labels.status[record.status])}
         </p>
         <div className="grid gap-3">
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Name</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.name}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={name}
@@ -605,7 +620,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Description</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.description}</span>
             <textarea
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={description}
@@ -615,13 +630,13 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Category</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.category}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={categoryCode}
                 onChange={(event) => setCategoryCode(event.target.value)}
               >
-                <option value="">Uncategorized</option>
+                <option value="">{copy.pluginForm.uncategorized}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.categoryCode}>
                     {category.name}
@@ -630,7 +645,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
               </select>
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Version label</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.versionLabel}</span>
               <input
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={versionLabel}
@@ -640,7 +655,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
           </div>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Visibility</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.visibility}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={visibility}
@@ -653,13 +668,13 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
               >
                 {VISIBILITY_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {copy.labels.visibility[option]}
                   </option>
                 ))}
               </select>
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="text-slate-600 dark:text-zinc-300">Install status</span>
+              <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.installStatus}</span>
               <select
                 className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                 value={installStatus}
@@ -667,14 +682,14 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
               >
                 {INSTALL_STATUS_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {copy.labels.installStatus[option]}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Provider</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.provider}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={provider}
@@ -682,7 +697,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Tags (comma separated)</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.tags}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={tags}
@@ -690,7 +705,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Manifest (JSON object)</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.pluginForm.fields.manifest}</span>
             <textarea
               className="rounded border border-slate-300 px-2 py-1 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800"
               value={manifest}
@@ -708,14 +723,14 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
             className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
             onClick={onClose}
           >
-            Cancel
+            {copy.pluginForm.cancel}
           </button>
           <button
             type="submit"
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
             disabled={submitting}
           >
-            Save
+            {copy.pluginForm.save}
           </button>
         </div>
       </form>
@@ -728,6 +743,7 @@ function EditPluginModal({ record, categories, onClose, onUpdate }: EditPluginMo
  * (`/backend/v3/api/plugin_categories`): list and upsert categories.
  */
 export function PluginCategoriesPage() {
+  const copy = usePluginsAdminCopy();
   const [records, setRecords] = useState<PluginCategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -781,9 +797,9 @@ export function PluginCategoriesPage() {
     <section className="embedded-fill-page">
       <header className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">Plugin Categories</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">{copy.categories.title}</h1>
           <p className="text-sm text-slate-500 dark:text-zinc-400">
-            Marketplace category registry served through the backend administration API.
+            {copy.categories.description}
           </p>
         </div>
         <button
@@ -791,7 +807,7 @@ export function PluginCategoriesPage() {
           className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
           onClick={() => setUpsertOpen(true)}
         >
-          New category
+          {copy.categories.newCategory}
         </button>
       </header>
 
@@ -809,18 +825,18 @@ export function PluginCategoriesPage() {
       <div className="data-surface">
         <div className="table-frame">
           {loading ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">Loading categories…</p>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.categories.loading}</p>
           ) : records.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">No plugin categories yet</p>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.categories.empty}</p>
           ) : (
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
                 <tr>
-                  <th className="px-3 py-2">Category</th>
-                  <th className="px-3 py-2">Code</th>
-                  <th className="px-3 py-2">Sort order</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Updated</th>
+                  <th className="px-3 py-2">{copy.categories.table.category}</th>
+                  <th className="px-3 py-2">{copy.categories.table.code}</th>
+                  <th className="px-3 py-2">{copy.categories.table.sortOrder}</th>
+                  <th className="px-3 py-2">{copy.categories.table.status}</th>
+                  <th className="px-3 py-2">{copy.categories.table.updated}</th>
                 </tr>
               </thead>
               <tbody>
@@ -834,7 +850,7 @@ export function PluginCategoriesPage() {
                     </td>
                     <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.categoryCode}</td>
                     <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.sortOrder}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.lifecycleStatus}</td>
+                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.status[record.lifecycleStatus]}</td>
                     <td className="px-3 py-2 text-xs text-slate-500 dark:text-zinc-400">{record.updatedAt}</td>
                   </tr>
                 ))}
@@ -850,7 +866,7 @@ export function PluginCategoriesPage() {
           onUpsert={async (body) => {
             const succeeded = await runAction(
               () => upsertPluginCategory(body),
-              `Category ${body.name} saved`,
+              copy.categories.notices.saved(body.name),
             );
             if (succeeded) {
               setUpsertOpen(false);
@@ -868,6 +884,7 @@ type UpsertCategoryModalProps = {
 };
 
 function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
+  const copy = usePluginsAdminCopy();
   const [categoryCode, setCategoryCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -879,7 +896,7 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
     event.preventDefault();
     const parsedSortOrder = Number.parseInt(sortOrder, 10);
     if (Number.isNaN(parsedSortOrder)) {
-      setFormError('Sort order must be an integer');
+      setFormError(copy.errors.sortOrderInvalid);
       return;
     }
     setSubmitting(true);
@@ -904,20 +921,20 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
         className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-900"
         onSubmit={submit}
       >
-        <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">Upsert category</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">{copy.categoryForm.title}</h2>
         <div className="grid gap-3">
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Category code</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.categoryCode}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={categoryCode}
               onChange={(event) => setCategoryCode(event.target.value)}
-              placeholder="search-tools"
+              placeholder={copy.categoryForm.placeholders.categoryCode}
               required
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Name</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.name}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={name}
@@ -926,7 +943,7 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Description</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.description}</span>
             <textarea
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={description}
@@ -935,7 +952,7 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
             />
           </label>
           <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">Sort order</span>
+            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.sortOrder}</span>
             <input
               className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
               value={sortOrder}
@@ -953,17 +970,25 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
             className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
             onClick={onClose}
           >
-            Cancel
+            {copy.categoryForm.cancel}
           </button>
           <button
             type="submit"
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
             disabled={submitting}
           >
-            Save
+            {copy.categoryForm.save}
           </button>
         </div>
       </form>
     </div>
   );
 }
+
+export {
+  PLUGINS_ADMIN_COPY,
+  resolvePluginsAdminCopy,
+  usePluginsAdminCopy,
+  usePluginsAdminLocale,
+  type PluginsAdminCopy,
+} from './copy/pluginsAdminCopy.ts';
