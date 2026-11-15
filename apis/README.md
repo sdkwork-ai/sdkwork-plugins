@@ -36,6 +36,15 @@ future install lifecycle command surface; no route carries it yet.
   (`API_SPEC.md` section 4.5). Errors: HTTP 4xx/5xx `application/problem+json`.
 - All list routes accept `SdkWorkListQuery`: `page` (default 1), `page_size`
   (default 20, max 200), `q` (free-text), `cursor` (rejected: offset only).
+- The two catalog list routes (`GET /app/v3/api/plugins` and
+  `GET /backend/v3/api/plugins`) additionally accept the catalog view filters:
+  - `category_code` — one `ai_plugin_category.category_code`; omitted or `all`
+    keeps every category.
+  - `role_codes` — comma-separated IAM role codes of the signed-in caller. An
+    empty value is the all-data view; a value keeps the plugins naming one of
+    those roles plus the plugins open to every role (empty
+    `allowed_role_codes`). Neither filter widens tenant or visibility scoping.
+
 - int64 wire fields (`id`, `version`, `categoryId`) are decimal strings with
   `x-sdkwork-int64-string: true` (`API_SPEC.md` section 13.6).
 - Record and command property names are camelCase, matching the Rust serde

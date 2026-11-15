@@ -98,7 +98,11 @@ impl PluginsRepository for InMemoryPluginRepository {
                 let mut created = record;
                 created.id = self.allocate_id();
                 created.uuid = uuid();
-                self.stamp_created(&mut created.created_at, &mut created.updated_at, &mut created.version);
+                self.stamp_created(
+                    &mut created.created_at,
+                    &mut created.updated_at,
+                    &mut created.version,
+                );
                 created
             }
         };
@@ -150,7 +154,11 @@ impl PluginsRepository for InMemoryPluginRepository {
         let mut created = record;
         created.id = self.allocate_id();
         created.uuid = uuid();
-        self.stamp_created(&mut created.created_at, &mut created.updated_at, &mut created.version);
+        self.stamp_created(
+            &mut created.created_at,
+            &mut created.updated_at,
+            &mut created.version,
+        );
         state.plugins.insert(key, created.clone());
         Ok(created)
     }
@@ -177,11 +185,7 @@ impl PluginsRepository for InMemoryPluginRepository {
         Ok(updated)
     }
 
-    async fn delete_plugin(
-        &self,
-        tenant_id: u64,
-        plugin_key: &str,
-    ) -> PluginsResult<PluginRecord> {
+    async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {
         let mut state = self.state.lock().map_err(map_poison)?;
         let key = (tenant_id, plugin_key.to_string());
         let Some(existing) = state.plugins.get(&key) else {

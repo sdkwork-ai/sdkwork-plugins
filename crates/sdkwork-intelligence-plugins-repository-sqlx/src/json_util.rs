@@ -2,8 +2,9 @@ use sdkwork_intelligence_plugins_service::{PluginsResult, PluginsServiceError};
 use sdkwork_utils_rust::format_datetime;
 
 pub fn string_list_from_json(input: &str, field: &str) -> PluginsResult<Vec<String>> {
-    let value: serde_json::Value = serde_json::from_str(input)
-        .map_err(|error| PluginsServiceError::Repository(format!("invalid {field} json: {error}")))?;
+    let value: serde_json::Value = serde_json::from_str(input).map_err(|error| {
+        PluginsServiceError::Repository(format!("invalid {field} json: {error}"))
+    })?;
     let Some(items) = value.as_array() else {
         return Err(PluginsServiceError::Repository(format!(
             "{field} must be a json array"

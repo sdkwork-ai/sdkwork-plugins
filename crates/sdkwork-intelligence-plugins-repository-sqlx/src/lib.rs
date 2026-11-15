@@ -21,10 +21,7 @@ pub struct SqlxPluginsRepository {
 
 impl SqlxPluginsRepository {
     pub fn new(pool: PgPool, id_generator: Arc<SnowflakeIdGenerator>) -> Self {
-        Self {
-            pool,
-            id_generator,
-        }
+        Self { pool, id_generator }
     }
 
     pub fn pool(&self) -> &PgPool {
@@ -56,8 +53,14 @@ impl PluginsRepository for SqlxPluginsRepository {
         operator_id: u64,
         record: PluginCategoryRecord,
     ) -> PluginsResult<PluginCategoryRecord> {
-        postgres::upsert_category(&self.pool, &self.id_generator, tenant_id, operator_id, record)
-            .await
+        postgres::upsert_category(
+            &self.pool,
+            &self.id_generator,
+            tenant_id,
+            operator_id,
+            record,
+        )
+        .await
     }
 
     async fn list_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
@@ -74,8 +77,14 @@ impl PluginsRepository for SqlxPluginsRepository {
         operator_id: u64,
         record: PluginRecord,
     ) -> PluginsResult<PluginRecord> {
-        postgres::create_plugin(&self.pool, &self.id_generator, tenant_id, operator_id, record)
-            .await
+        postgres::create_plugin(
+            &self.pool,
+            &self.id_generator,
+            tenant_id,
+            operator_id,
+            record,
+        )
+        .await
     }
 
     async fn update_plugin(
@@ -88,11 +97,7 @@ impl PluginsRepository for SqlxPluginsRepository {
         postgres::update_plugin(&self.pool, tenant_id, operator_id, plugin_key, record).await
     }
 
-    async fn delete_plugin(
-        &self,
-        tenant_id: u64,
-        plugin_key: &str,
-    ) -> PluginsResult<PluginRecord> {
+    async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {
         postgres::delete_plugin(&self.pool, tenant_id, plugin_key).await
     }
 }

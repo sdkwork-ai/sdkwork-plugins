@@ -33,7 +33,6 @@ pub use handlers::{
     create_plugin, default_category_record, default_plugin_record, delete_plugin, list_categories,
     list_plugins, update_plugin, upsert_category,
 };
-pub use sdkwork_intelligence_plugins_service::SharedPluginsService;
 pub use health::DbReadinessCheck;
 pub use http_route_manifest::backend_route_manifest;
 pub use http_support::{resolve_tenant_id, TENANT_HEADER};
@@ -42,6 +41,7 @@ pub use ports::PluginsBackendRequestContext;
 pub use response::{
     finish_api_json, finish_created_api_json, finish_no_content, ok_json, ApiProblem, ApiResult,
 };
+pub use sdkwork_intelligence_plugins_service::SharedPluginsService;
 pub use web_bootstrap::{
     plugins_backend_public_path_prefixes, wrap_router_with_web_framework,
     wrap_router_with_web_framework_from_env, PluginsBackendContextInjector,
@@ -125,10 +125,15 @@ async fn list_categories_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        ok_json(handlers::list_categories(state.service.as_ref(), tenant_id, &query).await?)
-    }.await)
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            ok_json(handlers::list_categories(state.service.as_ref(), tenant_id, &query).await?)
+        }
+        .await,
+    )
 }
 
 async fn upsert_category_handler<R>(
@@ -141,16 +146,19 @@ async fn upsert_category_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        let operator_id = context
-            .as_ref()
-            .and_then(|value| value.0.operator_id)
-            .unwrap_or(0);
-        ok_json(
-            upsert_category(state.service.as_ref(), tenant_id, operator_id, body).await?,
-        )
-    }.await)
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let operator_id = context
+                .as_ref()
+                .and_then(|value| value.0.operator_id)
+                .unwrap_or(0);
+            ok_json(upsert_category(state.service.as_ref(), tenant_id, operator_id, body).await?)
+        }
+        .await,
+    )
 }
 
 async fn list_plugins_handler<R>(
@@ -163,10 +171,15 @@ async fn list_plugins_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        ok_json(handlers::list_plugins(state.service.as_ref(), tenant_id, &query).await?)
-    }.await)
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            ok_json(handlers::list_plugins(state.service.as_ref(), tenant_id, &query).await?)
+        }
+        .await,
+    )
 }
 
 async fn create_plugin_handler<R>(
@@ -179,16 +192,22 @@ async fn create_plugin_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_created_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        let operator_id = context
-            .as_ref()
-            .and_then(|value| value.0.operator_id)
-            .unwrap_or(0);
-        ok_json(
-            handlers::create_plugin(state.service.as_ref(), tenant_id, operator_id, body).await?,
-        )
-    }.await)
+    response::finish_created_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let operator_id = context
+                .as_ref()
+                .and_then(|value| value.0.operator_id)
+                .unwrap_or(0);
+            ok_json(
+                handlers::create_plugin(state.service.as_ref(), tenant_id, operator_id, body)
+                    .await?,
+            )
+        }
+        .await,
+    )
 }
 
 async fn update_plugin_handler<R>(
@@ -202,23 +221,28 @@ async fn update_plugin_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        let operator_id = context
-            .as_ref()
-            .and_then(|value| value.0.operator_id)
-            .unwrap_or(0);
-        ok_json(
-            handlers::update_plugin(
-                state.service.as_ref(),
-                tenant_id,
-                operator_id,
-                plugin_key.as_str(),
-                body,
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let operator_id = context
+                .as_ref()
+                .and_then(|value| value.0.operator_id)
+                .unwrap_or(0);
+            ok_json(
+                handlers::update_plugin(
+                    state.service.as_ref(),
+                    tenant_id,
+                    operator_id,
+                    plugin_key.as_str(),
+                    body,
+                )
+                .await?,
             )
-            .await?,
-        )
-    }.await)
+        }
+        .await,
+    )
 }
 
 async fn delete_plugin_handler<R>(
@@ -231,11 +255,16 @@ async fn delete_plugin_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_no_content(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        handlers::delete_plugin(state.service.as_ref(), tenant_id, plugin_key.as_str()).await?;
-        Ok(())
-    }.await)
+    response::finish_no_content(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            handlers::delete_plugin(state.service.as_ref(), tenant_id, plugin_key.as_str()).await?;
+            Ok(())
+        }
+        .await,
+    )
 }
 
 pub fn build_router<R>(service: Arc<PluginsService<R>>, default_tenant_id: u64) -> Router

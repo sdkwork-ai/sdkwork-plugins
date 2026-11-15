@@ -44,7 +44,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "9c1735c281014f0c98be8a66d2faf110d24dae4a9e399bf0446bcde46259ca4c"
+      "sha256": "63453f80cf650ee1d7010c971692ef9ef49ebf4886e66cbccb6f1e6ef1993ba2"
     },
     {
       "path": "sdkwork-sdk.json",
@@ -64,7 +64,7 @@
     },
     {
       "path": "src/api/plugins.ts",
-      "sha256": "09a2a58fdf5f446a7c85714b51bd510922067aad58e451e5d908bc3984fda986"
+      "sha256": "66cd76d6d0b6354a2ae586c96a7cc46bd5b70d883dd9ba82819e450745bf08bf"
     },
     {
       "path": "src/auth/index.ts",

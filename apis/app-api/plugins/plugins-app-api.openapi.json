@@ -72,6 +72,26 @@
               "type": "string",
               "maxLength": 256
             }
+          },
+          {
+            "name": "category_code",
+            "in": "query",
+            "required": false,
+            "description": "One plugin category code from the category registry. Omit it, or send `all`, to keep every category.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "role_codes",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated IAM role codes of the signed-in caller, used as the catalog's role scope. An empty value keeps the all-data view; a value keeps records naming one of these roles plus the records open to every role.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
           }
         ],
         "responses": {

@@ -1,22 +1,22 @@
 {
- "schemaVersion": 1,
- "kind": "sdkwork.database.table-registry",
- "tables": [
-  {
-   "prefix": "ai_plugin",
-   "owner": "plugins-platform",
-   "module": "registry",
-   "table_name": "ai_plugin_category",
-   "compliance_level": "L2",
-   "lifecycle_status": "active"
-  },
-  {
-   "prefix": "ai_plugin",
-   "owner": "plugins-platform",
-   "module": "registry",
-   "table_name": "ai_plugin",
-   "compliance_level": "L2",
-   "lifecycle_status": "active"
-  }
- ]
+  "schemaVersion": 1,
+  "kind": "sdkwork.database.table-registry",
+  "tables": [
+    {
+      "prefix": "ai_plugin",
+      "owner": "plugins-platform",
+      "module": "registry",
+      "table_name": "ai_plugin_category",
+      "compliance_level": "L2",
+      "lifecycle_status": "active"
+    },
+    {
+      "prefix": "ai_plugin",
+      "owner": "plugins-platform",
+      "module": "registry",
+      "table_name": "ai_plugin",
+      "compliance_level": "L2",
+      "lifecycle_status": "active"
+    }
+  ]
 }

@@ -87,6 +87,14 @@ const en = {
     empty: 'No managed plugins yet',
     filterLabel: 'Filter by keyword',
     filterPlaceholder: 'name, key, tag, provider',
+    filters: {
+      categoryLabel: 'Category',
+      allCategories: 'All categories',
+      roleScopeLabel: 'Data scope',
+      roleScopeAll: 'All data',
+      roleScopeMine: 'My roles',
+      roleScopeUnavailable: 'The host did not supply the operator role codes.',
+    },
     table: {
       plugin: 'Plugin',
       category: 'Category',
@@ -294,6 +302,14 @@ const zh: PluginsAdminCopy = {
     empty: '暂无受管插件',
     filterLabel: '按关键词筛选',
     filterPlaceholder: '名称、标识、标签、提供方',
+    filters: {
+      categoryLabel: '分类',
+      allCategories: '全部分类',
+      roleScopeLabel: '数据范围',
+      roleScopeAll: '全部数据',
+      roleScopeMine: '我的角色',
+      roleScopeUnavailable: '宿主未提供当前操作者的角色编码。',
+    },
     table: {
       plugin: '插件',
       category: '分类',

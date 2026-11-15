@@ -64,7 +64,7 @@
     },
     {
       "path": "src/api/plugins-admin.ts",
-      "sha256": "3d5cf0000baeb047297bfdc1a99740ad23f0010be8e5aea0f443951712d81dfb"
+      "sha256": "10f65646a56a6c012d0631b3ea5ae68ca0329dc47efc73a0491893145f80e654"
     },
     {
       "path": "src/auth/index.ts",

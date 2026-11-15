@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { isBlank, trim } from '@sdkwork/utils';
 import type {
@@ -134,7 +134,31 @@ function Field({
  * The host must bind `configurePluginsAdminRuntime({ getBackendSdkClient })`
  * before this page renders; the block never constructs transport itself.
  */
-export function PluginsPage() {
+export interface PluginsPageProps {
+  /**
+   * IAM role codes of the signed-in operator.
+   *
+   * The page offers the catalog's role-scope switch with them: `All data`
+   * lists the whole tenant catalog, `My roles` keeps the records this operator
+   * can reach. Without role codes the switch stays on `All data`, because a
+   * scope the host cannot name would silently empty the table.
+   */
+  roleCodes?: readonly string[];
+}
+
+type RoleScope = 'all' | 'mine';
+
+/**
+ * True when the host supplied at least one usable operator role code.
+ *
+ * The role-scoped view is only meaningful with a populated scope, so the
+ * switch stays disabled instead of offering a view the host cannot name.
+ */
+function roleScopeCodesAvailable(roleCodes: readonly string[]): boolean {
+  return roleCodes.some((code) => code.trim().length > 0);
+}
+
+export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   const copy = usePluginsAdminCopy();
   const [records, setRecords] = useState<PluginRecord[]>([]);
   const [categories, setCategories] = useState<PluginCategoryRecord[]>([]);
@@ -144,7 +168,28 @@ export function PluginsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PluginRecord | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const [listParams, setListParams] = useState<PluginsAdminListParams | undefined>(undefined);
+  const [keyword, setKeyword] = useState('');
+  const [categoryCode, setCategoryCode] = useState('');
+  const [roleScope, setRoleScope] = useState<RoleScope>('all');
+
+  const roleScopeCodes = useMemo(
+    () => (roleScope === 'mine' ? roleCodes.map((code) => code.trim()).filter(Boolean) : []),
+    [roleScope, roleCodes],
+  );
+
+  const listParams = useMemo<PluginsAdminListParams | undefined>(() => {
+    const params: NonNullable<PluginsAdminListParams> = {};
+    if (keyword.trim().length > 0) {
+      params.q = keyword;
+    }
+    if (categoryCode.length > 0) {
+      params.categoryCode = categoryCode;
+    }
+    if (roleScopeCodes.length > 0) {
+      params.roleCodes = [...roleScopeCodes].sort().join(',');
+    }
+    return Object.keys(params).length > 0 ? params : undefined;
+  }, [keyword, categoryCode, roleScopeCodes]);
 
   const reload = useCallback(() => {
     setReloadToken((token) => token + 1);
@@ -320,14 +365,67 @@ export function PluginsPage() {
           <span className="text-slate-600 dark:text-zinc-300">{copy.plugins.filterLabel}</span>
           <input
             className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-            value={listParams?.q ?? ''}
-            onChange={(event) => {
-              const keyword = event.target.value;
-              setListParams(keyword.trim().length > 0 ? { q: keyword } : undefined);
-            }}
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
             placeholder={copy.plugins.filterPlaceholder}
           />
         </label>
+        <div className="mt-3 flex flex-wrap items-end gap-4 text-sm">
+          <label className="grid gap-1">
+            <span className="text-slate-600 dark:text-zinc-300">
+              {copy.plugins.filters.categoryLabel}
+            </span>
+            <select
+              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              value={categoryCode}
+              onChange={(event) => setCategoryCode(event.target.value)}
+            >
+              <option value="">{copy.plugins.filters.allCategories}</option>
+              {categories
+                .filter((category) => category.lifecycleStatus === 'active')
+                .slice()
+                .sort((left, right) => left.sortOrder - right.sortOrder)
+                .map((category) => (
+                  <option key={category.id} value={category.categoryCode}>
+                    {category.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="grid gap-1">
+            <span className="text-slate-600 dark:text-zinc-300">
+              {copy.plugins.filters.roleScopeLabel}
+            </span>
+            <div
+              className="inline-flex overflow-hidden rounded border border-slate-300 dark:border-zinc-700"
+              role="group"
+              aria-label={copy.plugins.filters.roleScopeLabel}
+            >
+              {(['all', 'mine'] as const).map((scope) => {
+                const disabled = scope === 'mine' && roleScopeCodesAvailable(roleCodes) === false;
+                return (
+                  <button
+                    key={scope}
+                    type="button"
+                    className={
+                      roleScope === scope
+                        ? 'bg-blue-600 px-3 py-1 text-xs font-medium text-white'
+                        : 'px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    }
+                    aria-pressed={roleScope === scope}
+                    disabled={disabled}
+                    title={disabled ? copy.plugins.filters.roleScopeUnavailable : undefined}
+                    onClick={() => setRoleScope(scope)}
+                  >
+                    {scope === 'all'
+                      ? copy.plugins.filters.roleScopeAll
+                      : copy.plugins.filters.roleScopeMine}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {createOpen ? (

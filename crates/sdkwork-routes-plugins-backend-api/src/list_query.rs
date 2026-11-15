@@ -1,14 +1,24 @@
 use serde::Deserialize;
 
+use sdkwork_plugins_contract::{normalize_category_filter, normalize_role_code_filter};
+
 use crate::response::ApiProblem;
 
-/// Standard GET list query parameters (`API_SPEC.md` section 14.1).
+/// Standard GET list query parameters (`API_SPEC.md` section 14.1) plus the
+/// catalog view filters (`category_code`, `role_codes`).
 #[derive(Debug, Default, Deserialize)]
 pub struct SdkWorkListQuery {
     pub page: Option<i32>,
     pub page_size: Option<i32>,
     pub cursor: Option<String>,
     pub q: Option<String>,
+    /// One category code from the registry; `all` keeps every category.
+    #[serde(alias = "categoryCode")]
+    pub category_code: Option<String>,
+    /// Comma-separated IAM role codes of the signed-in operator. Empty keeps
+    /// the "all data" view.
+    #[serde(alias = "roleCodes")]
+    pub role_codes: Option<String>,
 }
 
 impl SdkWorkListQuery {
@@ -39,6 +49,16 @@ impl SdkWorkListQuery {
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
+    }
+
+    /// Normalized category selector: `None` keeps every category.
+    pub fn category_filter(&self) -> Option<String> {
+        normalize_category_filter(self.category_code.as_deref())
+    }
+
+    /// Normalized role scope: empty keeps the "all data" view.
+    pub fn role_scope(&self) -> Vec<String> {
+        normalize_role_code_filter(self.role_codes.as_deref())
     }
 }
 

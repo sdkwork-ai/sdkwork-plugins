@@ -20,7 +20,8 @@
   "profiles": {
     "minimal": {
       "common": [
-        "common/001_plugin_categories.sql"
+        "common/001_plugin_categories.sql",
+        "common/002_plugin_catalog.sql"
       ],
       "locales": {
         "zh-CN": []
@@ -28,7 +29,8 @@
     },
     "standard": {
       "common": [
-        "common/001_plugin_categories.sql"
+        "common/001_plugin_categories.sql",
+        "common/002_plugin_catalog.sql"
       ],
       "locales": {
         "zh-CN": []

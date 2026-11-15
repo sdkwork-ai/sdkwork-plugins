@@ -3,7 +3,9 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use sdkwork_utils_rust::{PageInfo, PageMode, SdkWorkApiResponse, SdkWorkPageData, SdkWorkResourceData};
+use sdkwork_utils_rust::{
+    PageInfo, PageMode, SdkWorkApiResponse, SdkWorkPageData, SdkWorkResourceData,
+};
 use sdkwork_web_core::{
     problem_response, WebFrameworkError, WebFrameworkErrorKind, WebRequestContext,
 };
@@ -24,9 +26,7 @@ impl From<sdkwork_intelligence_plugins_service::PluginsServiceError> for ApiProb
         match error {
             PluginsServiceError::NotFound(message) => ApiProblem::not_found(message),
             PluginsServiceError::InvalidArgument(message) => ApiProblem::bad_request(message),
-            PluginsServiceError::Repository(message) => {
-                ApiProblem::internal_server_error(message)
-            }
+            PluginsServiceError::Repository(message) => ApiProblem::internal_server_error(message),
         }
     }
 }
@@ -98,10 +98,7 @@ pub fn finish_created_api_json<T: Serialize>(
 
 /// HTTP 204 with no body for delete operations. A failed result maps to a
 /// problem detail (404 when the target does not exist).
-pub fn finish_no_content(
-    ctx: &WebRequestContext,
-    result: ApiResult<()>,
-) -> Response {
+pub fn finish_no_content(ctx: &WebRequestContext, result: ApiResult<()>) -> Response {
     match result {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(problem) => problem.into_response_for(ctx),
