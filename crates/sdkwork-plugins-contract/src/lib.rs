@@ -6,13 +6,11 @@
 //! `sdkwork_utils_rust::serde_int64` / `::option` on id fields, and camelCase
 //! JSON property names per the plugins OpenAPI authorities.
 
-pub mod catalog;
 pub mod enums;
 pub mod operations;
 pub mod permissions;
 pub mod records;
 
-pub use catalog::*;
 pub use enums::*;
 pub use operations::*;
 pub use permissions::*;

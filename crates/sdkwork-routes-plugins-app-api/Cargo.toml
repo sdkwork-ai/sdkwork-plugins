@@ -25,3 +25,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sdkwork-utils-rust = { workspace = true }
 sqlx = { workspace = true }
+
+[dev-dependencies]
+serde_urlencoded = { workspace = true }
+tokio = { workspace = true }

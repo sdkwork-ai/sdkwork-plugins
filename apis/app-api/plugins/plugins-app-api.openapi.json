@@ -25,6 +25,7 @@
           "plugins"
         ],
         "summary": "Plugins plugins.list",
+        "description": "Marketplace listing. Returns only catalog-visible plugins (`status` = `active` and not soft-deleted), newest first; draft, disabled and archived plugins stay visible to the backend administration API only. Both catalog view filters (`category_code`, `role_codes`) further narrow the already tenant-scoped set.",
         "operationId": "plugins.list",
         "parameters": [
           {
@@ -310,6 +311,7 @@
           "plugins"
         ],
         "summary": "Plugins plugins.listCategories",
+        "description": "Marketplace category registry. Returns only catalog-visible categories (`status` = `active` and not soft-deleted) in registry order, so a visitor never sees a chip that files nothing; draft, disabled and archived categories stay visible to the backend administration API only.",
         "operationId": "plugins.listCategories",
         "parameters": [
           {

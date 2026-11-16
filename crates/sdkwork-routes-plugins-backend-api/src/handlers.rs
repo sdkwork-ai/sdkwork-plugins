@@ -2,9 +2,7 @@
 //! in the service crate; these thin wrappers keep the HTTP layer declarative.
 
 use sdkwork_intelligence_plugins_service::{PluginsService, UpsertPluginCategoryCommand};
-use sdkwork_plugins_contract::{
-    category_matches, role_scope_allows, PluginCategoryRecord, PluginRecord,
-};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
@@ -148,15 +146,10 @@ fn filter_categories(
 }
 
 fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<PluginRecord> {
-    let category = query.category_filter();
-    let role_scope = query.role_scope();
+    let filter = query.catalog_filter();
     let items = items
         .into_iter()
-        .filter(|item| match category.as_deref() {
-            Some(code) => category_matches(item.category_code.as_deref(), code),
-            None => true,
-        })
-        .filter(|item| role_scope_allows(&item.allowed_role_codes, &role_scope))
+        .filter(|item| filter.allows(item.category_code.as_deref(), &item.allowed_role_codes))
         .collect();
     filter_by_keyword(items, query, |item, keyword| {
         item.name.to_lowercase().contains(keyword)

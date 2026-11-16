@@ -33,6 +33,15 @@ pub type PluginsResult<T> = Result<T, PluginsServiceError>;
 pub trait PluginsRepository: Send + Sync {
     async fn list_categories(&self, tenant_id: u64) -> PluginsResult<Vec<PluginCategoryRecord>>;
 
+    /// Catalog-visible categories: only `active` rows, in registry order.
+    ///
+    /// The marketplace surface lists the taxonomy a visitor can actually file
+    /// against; draft, disabled and archived categories stay admin-only.
+    async fn list_catalog_categories(
+        &self,
+        tenant_id: u64,
+    ) -> PluginsResult<Vec<PluginCategoryRecord>>;
+
     async fn get_category(
         &self,
         tenant_id: u64,
@@ -47,6 +56,12 @@ pub trait PluginsRepository: Send + Sync {
     ) -> PluginsResult<PluginCategoryRecord>;
 
     async fn list_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>>;
+
+    /// Catalog-visible plugins: only `active` rows.
+    ///
+    /// The marketplace lists what a visitor can install; draft, disabled and
+    /// archived plugins stay admin-only.
+    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>>;
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord>;
 
@@ -84,6 +99,14 @@ impl<R: PluginsRepository> PluginsService<R> {
         self.repository.list_categories(tenant_id).await
     }
 
+    /// Catalog-visible categories for the marketplace surface.
+    pub async fn list_catalog_categories(
+        &self,
+        tenant_id: u64,
+    ) -> PluginsResult<Vec<PluginCategoryRecord>> {
+        self.repository.list_catalog_categories(tenant_id).await
+    }
+
     pub async fn get_category(
         &self,
         tenant_id: u64,
@@ -107,6 +130,11 @@ impl<R: PluginsRepository> PluginsService<R> {
 
     pub async fn list_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
         self.repository.list_plugins(tenant_id).await
+    }
+
+    /// Catalog-visible plugins for the marketplace surface.
+    pub async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
+        self.repository.list_catalog_plugins(tenant_id).await
     }
 
     pub async fn get_plugin(

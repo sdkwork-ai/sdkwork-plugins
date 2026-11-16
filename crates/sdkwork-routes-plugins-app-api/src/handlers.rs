@@ -1,6 +1,4 @@
-use sdkwork_plugins_contract::{
-    category_matches, role_scope_allows, PluginCategoryRecord, PluginRecord,
-};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
@@ -12,7 +10,8 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
     query: &SdkWorkListQuery,
 ) -> ApiResult<SdkWorkPageData<PluginRecord>> {
     query.validate()?;
-    let items = service.list_plugins(tenant_id).await?;
+    // The marketplace lists what a visitor can install: only active plugins.
+    let items = service.list_catalog_plugins(tenant_id).await?;
     Ok(paginate_items(filter_plugins(items, query), query))
 }
 
@@ -31,7 +30,10 @@ pub async fn list_categories<R: sdkwork_intelligence_plugins_service::PluginsRep
     query: &SdkWorkListQuery,
 ) -> ApiResult<SdkWorkPageData<PluginCategoryRecord>> {
     query.validate()?;
-    let items = service.list_categories(tenant_id).await?;
+    // The marketplace lists the taxonomy a visitor can file against: only
+    // active categories, in registry order. Archived/draft categories stay
+    // visible to the backend administration surface only.
+    let items = service.list_catalog_categories(tenant_id).await?;
     Ok(paginate_items(filter_categories(items, query), query))
 }
 
@@ -50,15 +52,10 @@ where
 }
 
 fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<PluginRecord> {
-    let category = query.category_filter();
-    let role_scope = query.role_scope();
+    let filter = query.catalog_filter();
     let items = items
         .into_iter()
-        .filter(|item| match category.as_deref() {
-            Some(code) => category_matches(item.category_code.as_deref(), code),
-            None => true,
-        })
-        .filter(|item| role_scope_allows(&item.allowed_role_codes, &role_scope))
+        .filter(|item| filter.allows(item.category_code.as_deref(), &item.allowed_role_codes))
         .collect();
     filter_by_keyword(items, query, |item, keyword| {
         item.name.to_lowercase().contains(keyword)
@@ -97,6 +94,7 @@ mod tests {
     use sdkwork_plugins_contract::{
         PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
     };
+    use sdkwork_utils_rust::CatalogViewQuery;
 
     use super::*;
 
@@ -131,8 +129,10 @@ mod tests {
 
     fn query(category_code: Option<&str>, role_codes: Option<&str>) -> SdkWorkListQuery {
         SdkWorkListQuery {
-            category_code: category_code.map(str::to_string),
-            role_codes: role_codes.map(str::to_string),
+            catalog: CatalogViewQuery {
+                category_code: category_code.map(str::to_string),
+                role_codes: role_codes.map(str::to_string),
+            },
             ..Default::default()
         }
     }
@@ -171,8 +171,90 @@ mod tests {
 
     #[test]
     fn category_and_role_filters_compose() {
-        let filtered = filter_plugins(catalog(), &query(Some("document-processing"), Some("org_admin")));
+        let filtered = filter_plugins(
+            catalog(),
+            &query(Some("document-processing"), Some("org_admin")),
+        );
         assert!(filtered.is_empty());
     }
-}
 
+    fn category(code: &str, status: PluginLifecycleStatus) -> PluginCategoryRecord {
+        PluginCategoryRecord {
+            id: 1,
+            uuid: String::new(),
+            category_code: code.to_string(),
+            name: code.to_string(),
+            description: None,
+            sort_order: 10,
+            lifecycle_status: status,
+            version: 0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn marketplace_categories_keep_only_active_registry_rows() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for row in [
+            category("code-development", PluginLifecycleStatus::Active),
+            category("data-retrieval", PluginLifecycleStatus::Draft),
+            category("business-apps", PluginLifecycleStatus::Archived),
+        ] {
+            repository
+                .upsert_category(7, 1, row)
+                .await
+                .expect("seed category");
+        }
+        let service = PluginsService::new(repository);
+
+        // The administration surface still sees the whole registry...
+        let admin = service.list_categories(7).await.expect("admin categories");
+        assert_eq!(admin.len(), 3);
+
+        // ...while the marketplace lists only what a visitor can file against.
+        let page = list_categories(&service, 7, &SdkWorkListQuery::default())
+            .await
+            .expect("catalog categories");
+        let codes = page
+            .items
+            .iter()
+            .map(|item| item.category_code.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(codes, vec!["code-development"]);
+    }
+
+    #[tokio::test]
+    async fn marketplace_plugins_keep_only_active_records() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for (key, status) in [
+            ("live-plugin", PluginLifecycleStatus::Active),
+            ("draft-plugin", PluginLifecycleStatus::Draft),
+            ("archived-plugin", PluginLifecycleStatus::Archived),
+        ] {
+            let mut record = plugin(key, Some("code-development"), &[]);
+            record.lifecycle_status = status;
+            repository
+                .create_plugin(7, 1, record)
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+
+        let admin = service.list_plugins(7).await.expect("admin plugins");
+        assert_eq!(admin.len(), 3);
+
+        let page = list_plugins(&service, 7, &SdkWorkListQuery::default())
+            .await
+            .expect("catalog plugins");
+        assert_eq!(keys(&page.items), vec!["live-plugin"]);
+    }
+}

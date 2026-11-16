@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use sdkwork_plugins_contract::{normalize_category_filter, normalize_role_code_filter};
+use sdkwork_utils_rust::{CatalogViewFilter, CatalogViewQuery};
 
 use crate::response::ApiProblem;
 
@@ -8,17 +8,22 @@ use crate::response::ApiProblem;
 /// catalog view filters (`category_code`, `role_codes`).
 #[derive(Debug, Default, Deserialize)]
 pub struct SdkWorkListQuery {
+    #[serde(
+        default,
+        deserialize_with = "sdkwork_utils_rust::serde_query_int::option_i32"
+    )]
     pub page: Option<i32>,
+    #[serde(
+        default,
+        deserialize_with = "sdkwork_utils_rust::serde_query_int::option_i32"
+    )]
     pub page_size: Option<i32>,
     pub cursor: Option<String>,
     pub q: Option<String>,
-    /// One category code from the registry; `all` keeps every category.
-    #[serde(alias = "categoryCode")]
-    pub category_code: Option<String>,
-    /// Comma-separated IAM role codes of the signed-in operator. Empty keeps
-    /// the "all data" view.
-    #[serde(alias = "roleCodes")]
-    pub role_codes: Option<String>,
+    /// The shared catalog view vocabulary: one registry category code (`all`
+    /// keeps every category) plus the caller's comma-separated IAM role codes.
+    #[serde(flatten)]
+    pub catalog: CatalogViewQuery,
 }
 
 impl SdkWorkListQuery {
@@ -51,14 +56,9 @@ impl SdkWorkListQuery {
             .filter(|value| !value.is_empty())
     }
 
-    /// Normalized category selector: `None` keeps every category.
-    pub fn category_filter(&self) -> Option<String> {
-        normalize_category_filter(self.category_code.as_deref())
-    }
-
-    /// Normalized role scope: empty keeps the "all data" view.
-    pub fn role_scope(&self) -> Vec<String> {
-        normalize_role_code_filter(self.role_codes.as_deref())
+    /// Normalized catalog view: the default keeps every category and role.
+    pub fn catalog_filter(&self) -> CatalogViewFilter {
+        self.catalog.to_filter()
     }
 }
 
@@ -68,8 +68,10 @@ mod tests {
 
     fn query_with(category_code: Option<&str>, role_codes: Option<&str>) -> SdkWorkListQuery {
         SdkWorkListQuery {
-            category_code: category_code.map(str::to_string),
-            role_codes: role_codes.map(str::to_string),
+            catalog: CatalogViewQuery {
+                category_code: category_code.map(str::to_string),
+                role_codes: role_codes.map(str::to_string),
+            },
             ..Default::default()
         }
     }
@@ -91,19 +93,45 @@ mod tests {
 
     #[test]
     fn category_filter_keeps_all_for_the_all_selector() {
-        assert_eq!(query_with(Some("all"), None).category_filter(), None);
         assert_eq!(
-            query_with(Some("code-development"), None).category_filter(),
-            Some("code-development".to_string())
+            query_with(Some("all"), None)
+                .catalog_filter()
+                .category_code(),
+            None
+        );
+        assert_eq!(
+            query_with(Some("code-development"), None)
+                .catalog_filter()
+                .category_code(),
+            Some("code-development")
         );
     }
 
     #[test]
     fn role_scope_is_empty_for_the_all_view() {
-        assert!(query_with(None, None).role_scope().is_empty());
+        assert!(query_with(None, None)
+            .catalog_filter()
+            .role_codes()
+            .is_empty());
         assert_eq!(
-            query_with(None, Some("org_admin,org_operations")).role_scope(),
-            vec!["org_admin".to_string(), "org_operations".to_string()]
+            query_with(None, Some("org_admin,org_operations"))
+                .catalog_filter()
+                .role_codes(),
+            ["org_admin".to_string(), "org_operations".to_string()].as_slice()
+        );
+    }
+
+    #[test]
+    fn wire_form_parses_through_the_dto() {
+        let query: SdkWorkListQuery =
+            serde_urlencoded::from_str("category_code=all&role_codes=org_admin,org_auditor")
+                .expect("list query parses");
+        assert_eq!(query.page, None);
+        let filter = query.catalog_filter();
+        assert_eq!(filter.category_code(), None);
+        assert_eq!(
+            filter.role_codes(),
+            ["org_admin".to_string(), "org_auditor".to_string()].as_slice()
         );
     }
 }

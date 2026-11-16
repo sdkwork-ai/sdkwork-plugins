@@ -11,6 +11,11 @@ use crate::json_util::{string_list_from_json, string_list_to_json, timestamp_to_
 
 const ACTIVE_ENTITY_FILTER: &str = "deleted_at IS NULL AND lifecycle_status <> 4";
 
+/// Catalog visibility: only `active` rows. The marketplace surface and the
+/// admin inventory therefore read the same table through two documented
+/// predicates instead of one predicate both callers reinterpret.
+const CATALOG_VISIBLE_FILTER: &str = "deleted_at IS NULL AND lifecycle_status = 1";
+
 const CATEGORY_SELECT: &str = r#"
     id, uuid, tenant_id, organization_id, category_code, name, description, sort_order,
     lifecycle_status, version, created_at, updated_at, created_by, updated_by, deleted_at
@@ -158,6 +163,31 @@ pub async fn list_categories(
     rows.iter().map(row_to_category).collect()
 }
 
+/// Catalog-visible categories: only `active` rows, in registry order.
+///
+/// The marketplace surface lists the taxonomy a visitor can file against;
+/// draft, disabled and archived categories stay admin-only through
+/// [`ACTIVE_ENTITY_FILTER`] on [`list_categories`].
+pub async fn list_catalog_categories(
+    pool: &PgPool,
+    tenant_id: u64,
+) -> PluginsResult<Vec<PluginCategoryRecord>> {
+    let query = format!(
+        r#"
+        SELECT {CATEGORY_SELECT}
+        FROM ai_plugin_category
+        WHERE tenant_id IN (0, $1) AND {CATALOG_VISIBLE_FILTER}
+        ORDER BY sort_order ASC, category_code ASC
+        "#
+    );
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str()))
+        .bind(tenant_id as i64)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    rows.iter().map(row_to_category).collect()
+}
+
 pub async fn get_category(
     pool: &PgPool,
     tenant_id: u64,
@@ -234,6 +264,31 @@ pub async fn list_plugins(pool: &PgPool, tenant_id: u64) -> PluginsResult<Vec<Pl
         SELECT {PLUGIN_SELECT}
         FROM ai_plugin
         WHERE tenant_id = $1 AND {ACTIVE_ENTITY_FILTER}
+        ORDER BY updated_at DESC, plugin_key ASC
+        "#
+    );
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str()))
+        .bind(tenant_id as i64)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    rows.iter().map(row_to_plugin).collect()
+}
+
+/// Catalog-visible plugins: only `active` rows, newest first.
+///
+/// Draft, disabled and archived plugins stay admin-only through
+/// [`ACTIVE_ENTITY_FILTER`] on [`list_plugins`]; the marketplace never offers
+/// a card a visitor cannot install.
+pub async fn list_catalog_plugins(
+    pool: &PgPool,
+    tenant_id: u64,
+) -> PluginsResult<Vec<PluginRecord>> {
+    let query = format!(
+        r#"
+        SELECT {PLUGIN_SELECT}
+        FROM ai_plugin
+        WHERE tenant_id = $1 AND {CATALOG_VISIBLE_FILTER}
         ORDER BY updated_at DESC, plugin_key ASC
         "#
     );

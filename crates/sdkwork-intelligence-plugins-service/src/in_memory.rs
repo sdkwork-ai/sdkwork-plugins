@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginLifecycleStatus, PluginRecord};
 use sdkwork_utils_rust::uuid;
 
 use crate::{PluginsRepository, PluginsResult, PluginsServiceError};
@@ -61,6 +61,15 @@ impl PluginsRepository for InMemoryPluginRepository {
                 .cmp(&right.sort_order)
                 .then_with(|| left.category_code.cmp(&right.category_code))
         });
+        Ok(records)
+    }
+
+    async fn list_catalog_categories(
+        &self,
+        tenant_id: u64,
+    ) -> PluginsResult<Vec<PluginCategoryRecord>> {
+        let mut records = self.list_categories(tenant_id).await?;
+        records.retain(|record| record.lifecycle_status == PluginLifecycleStatus::Active);
         Ok(records)
     }
 
@@ -125,6 +134,12 @@ impl PluginsRepository for InMemoryPluginRepository {
                 .cmp(&left.updated_at)
                 .then_with(|| left.plugin_key.cmp(&right.plugin_key))
         });
+        Ok(records)
+    }
+
+    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
+        let mut records = self.list_plugins(tenant_id).await?;
+        records.retain(|record| record.lifecycle_status == PluginLifecycleStatus::Active);
         Ok(records)
     }
 

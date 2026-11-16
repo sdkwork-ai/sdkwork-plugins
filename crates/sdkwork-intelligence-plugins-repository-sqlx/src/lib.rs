@@ -47,6 +47,13 @@ impl PluginsRepository for SqlxPluginsRepository {
         postgres::get_category(&self.pool, tenant_id, category_code).await
     }
 
+    async fn list_catalog_categories(
+        &self,
+        tenant_id: u64,
+    ) -> PluginsResult<Vec<PluginCategoryRecord>> {
+        postgres::list_catalog_categories(&self.pool, tenant_id).await
+    }
+
     async fn upsert_category(
         &self,
         tenant_id: u64,
@@ -65,6 +72,10 @@ impl PluginsRepository for SqlxPluginsRepository {
 
     async fn list_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
         postgres::list_plugins(&self.pool, tenant_id).await
+    }
+
+    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
+        postgres::list_catalog_plugins(&self.pool, tenant_id).await
     }
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {
