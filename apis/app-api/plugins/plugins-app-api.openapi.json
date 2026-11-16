@@ -200,6 +200,7 @@
           "plugins"
         ],
         "summary": "Plugins plugins.retrieve",
+        "description": "Marketplace retrieval. A plugin the marketplace listing would not publish (draft, disabled or archived, or soft-deleted) is reported as 404 rather than returned, so an unpublished key cannot be read by guessing it. The backend administration API still reads every record.",
         "operationId": "plugins.retrieve",
         "parameters": [
           {

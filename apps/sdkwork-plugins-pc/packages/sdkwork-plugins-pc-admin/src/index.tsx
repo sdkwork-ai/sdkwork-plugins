@@ -158,6 +158,31 @@ function roleScopeCodesAvailable(roleCodes: readonly string[]): boolean {
   return roleCodes.some((code) => code.trim().length > 0);
 }
 
+/**
+ * Active category options for the filter select.
+ *
+ * A category that was active when it was selected can be archived later; the
+ * select must keep showing that value instead of silently rendering blank
+ * while the list stays filtered by it. The retained option carries the code as
+ * its label, because the registry no longer publishes a name for an archived
+ * row in this view.
+ */
+function activeCategoryOptions(
+  categories: readonly PluginCategoryRecord[],
+  selected: string,
+): { value: string; label: string }[] {
+  const options = categories
+    .filter((category) => category.lifecycleStatus === 'active')
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((category) => ({ value: category.categoryCode, label: category.name }));
+  if (selected.length > 0 && !options.some((option) => option.value === selected)) {
+    const retained = categories.find((category) => category.categoryCode === selected);
+    options.push({ value: selected, label: retained?.name ?? selected });
+  }
+  return options;
+}
+
 export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   const copy = usePluginsAdminCopy();
   const [records, setRecords] = useState<PluginRecord[]>([]);
@@ -178,7 +203,10 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   );
 
   const listParams = useMemo<PluginsAdminListParams | undefined>(() => {
-    const params: NonNullable<PluginsAdminListParams> = {};
+    // The tables render the whole filtered list, so the request asks for the
+    // maximum page the backend serves (`MAX_LIST_PAGE_SIZE`); without it the
+    // default window would silently hide everything past the first 20 rows.
+    const params: NonNullable<PluginsAdminListParams> = { pageSize: 200 };
     if (keyword.trim().length > 0) {
       params.q = keyword;
     }
@@ -188,7 +216,7 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
     if (roleScopeCodes.length > 0) {
       params.roleCodes = [...roleScopeCodes].sort().join(',');
     }
-    return Object.keys(params).length > 0 ? params : undefined;
+    return params;
   }, [keyword, categoryCode, roleScopeCodes]);
 
   const reload = useCallback(() => {
@@ -198,7 +226,11 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([listPlugins(listParams), listPluginCategories()])
+    Promise.all([
+      listPlugins(listParams),
+      // The category filter needs the full registry, not the default window.
+      listPluginCategories({ pageSize: 200 }),
+    ])
       .then(([pluginPage, categoryPage]) => {
         if (!active) return;
         setRecords(pluginPage.items);
@@ -381,15 +413,11 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
               onChange={(event) => setCategoryCode(event.target.value)}
             >
               <option value="">{copy.plugins.filters.allCategories}</option>
-              {categories
-                .filter((category) => category.lifecycleStatus === 'active')
-                .slice()
-                .sort((left, right) => left.sortOrder - right.sortOrder)
-                .map((category) => (
-                  <option key={category.id} value={category.categoryCode}>
-                    {category.name}
-                  </option>
-                ))}
+              {activeCategoryOptions(categories, categoryCode).map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
             </select>
           </label>
           <div className="grid gap-1">

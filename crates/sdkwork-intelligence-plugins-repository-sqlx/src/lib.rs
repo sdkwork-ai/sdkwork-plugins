@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use sdkwork_id_core::SnowflakeIdGenerator;
 use sdkwork_intelligence_plugins_service::{PluginsRepository, PluginsResult};
 use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_utils_rust::CatalogViewFilter;
 use sqlx::PgPool;
 
 /// PostgreSQL-backed plugins repository over the `ai_plugin_category` and
@@ -39,6 +40,17 @@ impl PluginsRepository for SqlxPluginsRepository {
         postgres::list_categories(&self.pool, tenant_id).await
     }
 
+    async fn list_categories_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+        postgres::list_categories_page(&self.pool, tenant_id, filter, keyword, limit, offset).await
+    }
+
     async fn get_category(
         &self,
         tenant_id: u64,
@@ -52,6 +64,20 @@ impl PluginsRepository for SqlxPluginsRepository {
         tenant_id: u64,
     ) -> PluginsResult<Vec<PluginCategoryRecord>> {
         postgres::list_catalog_categories(&self.pool, tenant_id).await
+    }
+
+    async fn list_catalog_categories_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+        postgres::list_catalog_categories_page(
+            &self.pool, tenant_id, filter, keyword, limit, offset,
+        )
+        .await
     }
 
     async fn upsert_category(
@@ -74,8 +100,31 @@ impl PluginsRepository for SqlxPluginsRepository {
         postgres::list_plugins(&self.pool, tenant_id).await
     }
 
+    async fn list_plugins_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+        postgres::list_plugins_page(&self.pool, tenant_id, filter, keyword, limit, offset).await
+    }
+
     async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
         postgres::list_catalog_plugins(&self.pool, tenant_id).await
+    }
+
+    async fn list_catalog_plugins_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+        postgres::list_catalog_plugins_page(&self.pool, tenant_id, filter, keyword, limit, offset)
+            .await
     }
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {

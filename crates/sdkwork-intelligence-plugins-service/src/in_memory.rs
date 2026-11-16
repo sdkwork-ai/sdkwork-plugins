@@ -5,12 +5,66 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 
 use sdkwork_plugins_contract::{PluginCategoryRecord, PluginLifecycleStatus, PluginRecord};
-use sdkwork_utils_rust::uuid;
+use sdkwork_utils_rust::{uuid, CatalogViewFilter};
 
 use crate::{PluginsRepository, PluginsResult, PluginsServiceError};
 
 fn map_poison<T>(_: T) -> PluginsServiceError {
     PluginsServiceError::Repository("in-memory plugins registry lock poisoned".to_string())
+}
+
+fn contains_keyword(value: &str, keyword: &str) -> bool {
+    value.to_lowercase().contains(keyword)
+}
+
+fn category_in_view(
+    record: &PluginCategoryRecord,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+) -> bool {
+    // Categories carry no role list, so the role half is the open-record case.
+    if !filter.allows(Some(record.category_code.as_str()), &[]) {
+        return false;
+    }
+    let Some(keyword) = keyword else {
+        return true;
+    };
+    let keyword = keyword.to_lowercase();
+    contains_keyword(&record.name, &keyword)
+        || contains_keyword(&record.category_code, &keyword)
+        || contains_keyword(record.description.as_deref().unwrap_or(""), &keyword)
+}
+
+fn plugin_in_view(
+    record: &PluginRecord,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+) -> bool {
+    if !filter.allows(record.category_code.as_deref(), &record.allowed_role_codes) {
+        return false;
+    }
+    let Some(keyword) = keyword else {
+        return true;
+    };
+    let keyword = keyword.to_lowercase();
+    contains_keyword(&record.plugin_key, &keyword)
+        || contains_keyword(&record.name, &keyword)
+        || contains_keyword(record.description.as_deref().unwrap_or(""), &keyword)
+        || contains_keyword(record.category_code.as_deref().unwrap_or(""), &keyword)
+        || record
+            .tags
+            .iter()
+            .any(|tag| contains_keyword(tag, &keyword))
+}
+
+/// Extracts one page from an already ordered, already filtered collection and
+/// reports its filtered length as the total.
+fn slice_page<T>(records: Vec<T>, limit: i64, offset: i64) -> (Vec<T>, i64) {
+    let total = i64::try_from(records.len()).unwrap_or(i64::MAX);
+    let offset = usize::try_from(offset).unwrap_or(usize::MAX);
+    let limit = usize::try_from(limit).unwrap_or(0);
+    let items = records.into_iter().skip(offset).take(limit).collect();
+    (items, total)
 }
 
 /// Deterministic in-memory [`PluginsRepository`] for tests and local
@@ -71,6 +125,38 @@ impl PluginsRepository for InMemoryPluginRepository {
         let mut records = self.list_categories(tenant_id).await?;
         records.retain(|record| record.lifecycle_status == PluginLifecycleStatus::Active);
         Ok(records)
+    }
+
+    async fn list_categories_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+        let records = self.list_categories(tenant_id).await?;
+        let filtered = records
+            .into_iter()
+            .filter(|record| category_in_view(record, filter, keyword))
+            .collect();
+        Ok(slice_page(filtered, limit, offset))
+    }
+
+    async fn list_catalog_categories_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+        let records = self.list_catalog_categories(tenant_id).await?;
+        let filtered = records
+            .into_iter()
+            .filter(|record| category_in_view(record, filter, keyword))
+            .collect();
+        Ok(slice_page(filtered, limit, offset))
     }
 
     async fn get_category(
@@ -141,6 +227,38 @@ impl PluginsRepository for InMemoryPluginRepository {
         let mut records = self.list_plugins(tenant_id).await?;
         records.retain(|record| record.lifecycle_status == PluginLifecycleStatus::Active);
         Ok(records)
+    }
+
+    async fn list_plugins_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+        let records = self.list_plugins(tenant_id).await?;
+        let filtered = records
+            .into_iter()
+            .filter(|record| plugin_in_view(record, filter, keyword))
+            .collect();
+        Ok(slice_page(filtered, limit, offset))
+    }
+
+    async fn list_catalog_plugins_page(
+        &self,
+        tenant_id: u64,
+        filter: &CatalogViewFilter,
+        keyword: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+        let records = self.list_catalog_plugins(tenant_id).await?;
+        let filtered = records
+            .into_iter()
+            .filter(|record| plugin_in_view(record, filter, keyword))
+            .collect();
+        Ok(slice_page(filtered, limit, offset))
     }
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {

@@ -6,7 +6,7 @@ use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
-use crate::response::{item_data, paginate_items, ApiResult};
+use crate::response::{item_data, page_data_from_total, ApiResult};
 
 /// Blank category record in the shape the service expects on upsert.
 pub fn default_category_record(category_code: String, name: String) -> PluginCategoryRecord {
@@ -61,8 +61,26 @@ pub async fn list_categories<R: sdkwork_intelligence_plugins_service::PluginsRep
     query: &SdkWorkListQuery,
 ) -> ApiResult<SdkWorkPageData<PluginCategoryRecord>> {
     query.validate()?;
-    let items = service.list_categories(tenant_id).await?;
-    Ok(paginate_items(filter_categories(items, query), query))
+    // The store filters, orders and counts before it cuts the page; the total
+    // is the admin inventory size rather than the page length.
+    let (limit, offset) = page_window(query);
+    let (items, total) = service
+        .list_categories_page(
+            tenant_id,
+            &query.catalog_filter(),
+            query.search_keyword(),
+            limit,
+            offset,
+        )
+        .await?;
+    Ok(page_data_from_total(items, total, query))
+}
+
+/// `(limit, offset)` window handed to the store paged query.
+fn page_window(query: &SdkWorkListQuery) -> (i64, i64) {
+    let limit = i64::from(query.effective_page_size());
+    let offset = (i64::from(query.effective_page()) - 1) * limit;
+    (limit, offset)
 }
 
 pub async fn upsert_category<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
@@ -83,8 +101,17 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
     query: &SdkWorkListQuery,
 ) -> ApiResult<SdkWorkPageData<PluginRecord>> {
     query.validate()?;
-    let items = service.list_plugins(tenant_id).await?;
-    Ok(paginate_items(filter_plugins(items, query), query))
+    let (limit, offset) = page_window(query);
+    let (items, total) = service
+        .list_plugins_page(
+            tenant_id,
+            &query.catalog_filter(),
+            query.search_keyword(),
+            limit,
+            offset,
+        )
+        .await?;
+    Ok(page_data_from_total(items, total, query))
 }
 
 pub async fn create_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
@@ -119,62 +146,4 @@ pub async fn delete_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepos
 ) -> ApiResult<()> {
     service.delete_plugin(tenant_id, plugin_key).await?;
     Ok(())
-}
-
-fn filter_by_keyword<T, F>(items: Vec<T>, query: &SdkWorkListQuery, matches: F) -> Vec<T>
-where
-    F: Fn(&T, &str) -> bool,
-{
-    let Some(keyword) = query.search_keyword() else {
-        return items;
-    };
-    let keyword = keyword.to_lowercase();
-    items
-        .into_iter()
-        .filter(|item| matches(item, keyword.as_str()))
-        .collect()
-}
-
-fn filter_categories(
-    items: Vec<PluginCategoryRecord>,
-    query: &SdkWorkListQuery,
-) -> Vec<PluginCategoryRecord> {
-    filter_by_keyword(items, query, |item, keyword| {
-        item.name.to_lowercase().contains(keyword)
-            || item.category_code.to_lowercase().contains(keyword)
-    })
-}
-
-fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<PluginRecord> {
-    let filter = query.catalog_filter();
-    let items = items
-        .into_iter()
-        .filter(|item| filter.allows(item.category_code.as_deref(), &item.allowed_role_codes))
-        .collect();
-    filter_by_keyword(items, query, |item, keyword| {
-        item.name.to_lowercase().contains(keyword)
-            || item.plugin_key.to_lowercase().contains(keyword)
-            || item
-                .description
-                .as_deref()
-                .unwrap_or("")
-                .to_lowercase()
-                .contains(keyword)
-            || item
-                .category_code
-                .as_deref()
-                .unwrap_or("")
-                .to_lowercase()
-                .contains(keyword)
-            || item
-                .provider
-                .as_deref()
-                .unwrap_or("")
-                .to_lowercase()
-                .contains(keyword)
-            || item
-                .tags
-                .iter()
-                .any(|tag| tag.to_lowercase().contains(keyword))
-    })
 }

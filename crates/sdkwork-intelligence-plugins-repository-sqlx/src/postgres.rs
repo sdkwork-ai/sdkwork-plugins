@@ -4,29 +4,177 @@ use sdkwork_plugins_contract::{
     PluginCategoryRecord, PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
     PluginRecord, PluginVisibility,
 };
+use sdkwork_utils_rust::{CatalogViewFilter, LIST_TOTAL_SQL_COLUMN};
 use sqlx::{PgPool, Row};
 
 use crate::entity_ids::{new_plugins_snowflake_id, new_plugins_uuid};
 use crate::json_util::{string_list_from_json, string_list_to_json, timestamp_to_rfc3339};
 
-const ACTIVE_ENTITY_FILTER: &str = "deleted_at IS NULL AND lifecycle_status <> 4";
+macro_rules! active_entity_filter {
+    () => {
+        "deleted_at IS NULL AND lifecycle_status <> 4"
+    };
+}
+
+macro_rules! catalog_visible_filter {
+    () => {
+        "deleted_at IS NULL AND lifecycle_status = 1"
+    };
+}
+
+const ACTIVE_ENTITY_FILTER: &str = active_entity_filter!();
 
 /// Catalog visibility: only `active` rows. The marketplace surface and the
 /// admin inventory therefore read the same table through two documented
 /// predicates instead of one predicate both callers reinterpret.
-const CATALOG_VISIBLE_FILTER: &str = "deleted_at IS NULL AND lifecycle_status = 1";
+const CATALOG_VISIBLE_FILTER: &str = catalog_visible_filter!();
 
-const CATEGORY_SELECT: &str = r#"
-    id, uuid, tenant_id, organization_id, category_code, name, description, sort_order,
-    lifecycle_status, version, created_at, updated_at, created_by, updated_by, deleted_at
-"#;
+macro_rules! category_columns {
+    () => {
+        "id, uuid, tenant_id, organization_id, category_code, name, description, sort_order, \
+         lifecycle_status, version, created_at, updated_at, created_by, updated_by, deleted_at"
+    };
+}
 
-const PLUGIN_SELECT: &str = r#"
-    id, uuid, tenant_id, organization_id, plugin_key, name, description, category_id,
-    category_code, version_label, provider, implementation_type, visibility, manifest_json,
-    source_json, install_status, lifecycle_status, tags_json, allowed_role_codes_json, version,
-    created_at, updated_at, created_by, updated_by, deleted_at
-"#;
+macro_rules! plugin_columns {
+    () => {
+        "id, uuid, tenant_id, organization_id, plugin_key, name, description, category_id, \
+         category_code, version_label, provider, implementation_type, visibility, manifest_json, \
+         source_json, install_status, lifecycle_status, tags_json, allowed_role_codes_json, \
+         version, created_at, updated_at, created_by, updated_by, deleted_at"
+    };
+}
+
+const CATEGORY_SELECT: &str = category_columns!();
+
+const PLUGIN_SELECT: &str = plugin_columns!();
+
+/// Keyword predicate for one plugin page: `$2` holds the nullable `%kw%`
+/// pattern, folded once by the caller.
+macro_rules! plugin_keyword_predicate {
+    () => {
+        "($2::text IS NULL OR LOWER(plugin_key) LIKE $2 OR LOWER(name) LIKE $2 \
+         OR LOWER(COALESCE(description, '')) LIKE $2 \
+         OR LOWER(COALESCE(category_code, '')) LIKE $2 \
+         OR LOWER(tags_json::text) LIKE $2)"
+    };
+}
+
+/// Keyword predicate for one category page: `$2` holds the nullable `%kw%`
+/// pattern, folded once by the caller.
+macro_rules! category_keyword_predicate {
+    () => {
+        "($2::text IS NULL OR LOWER(name) LIKE $2 OR LOWER(category_code) LIKE $2 \
+         OR LOWER(COALESCE(description, '')) LIKE $2)"
+    };
+}
+
+/// Category half of the catalog view: `$3` holds the nullable selector.
+macro_rules! category_code_predicate {
+    () => {
+        "($3::text IS NULL OR LOWER(category_code) = $3)"
+    };
+}
+
+/// Role half of the catalog view: `$4` holds the caller's role codes.
+///
+/// An empty scope keeps the all-data view, an empty assignment is open to every
+/// role, and a populated scope matches the records naming one of its codes.
+macro_rules! plugin_role_predicate {
+    () => {
+        "(cardinality($4::text[]) = 0 \
+         OR jsonb_array_length(allowed_role_codes_json) = 0 \
+         OR allowed_role_codes_json ?| $4::text[])"
+    };
+}
+
+/// Admin plugin page: one statement whose window count comes from the same
+/// filtered set the page is cut from.
+const PLUGIN_PAGE_SQL_ADMIN: &str = concat!(
+    "SELECT ",
+    plugin_columns!(),
+    ", COUNT(*) OVER() AS __list_total FROM ai_plugin WHERE tenant_id = $1 AND ",
+    active_entity_filter!(),
+    " AND ",
+    plugin_keyword_predicate!(),
+    " AND ",
+    category_code_predicate!(),
+    " AND ",
+    plugin_role_predicate!(),
+    " ORDER BY updated_at DESC, plugin_key ASC LIMIT $5 OFFSET $6"
+);
+
+/// Catalog plugin page: the marketplace reads only `active` rows, and its
+/// window count therefore never includes admin-only rows.
+const PLUGIN_PAGE_SQL_CATALOG: &str = concat!(
+    "SELECT ",
+    plugin_columns!(),
+    ", COUNT(*) OVER() AS __list_total FROM ai_plugin WHERE tenant_id = $1 AND ",
+    catalog_visible_filter!(),
+    " AND ",
+    plugin_keyword_predicate!(),
+    " AND ",
+    category_code_predicate!(),
+    " AND ",
+    plugin_role_predicate!(),
+    " ORDER BY updated_at DESC, plugin_key ASC LIMIT $5 OFFSET $6"
+);
+
+/// Admin category page; categories carry no role list, so the page predicate
+/// stops after the keyword and the selector.
+const CATEGORY_PAGE_SQL_ADMIN: &str = concat!(
+    "SELECT ",
+    category_columns!(),
+    ", COUNT(*) OVER() AS __list_total FROM ai_plugin_category ",
+    "WHERE tenant_id IN (0, $1) AND ",
+    active_entity_filter!(),
+    " AND ",
+    category_keyword_predicate!(),
+    " AND ",
+    category_code_predicate!(),
+    " ORDER BY sort_order ASC, category_code ASC LIMIT $4 OFFSET $5"
+);
+
+/// Catalog category page: only `active` rows are counted and returned.
+const CATEGORY_PAGE_SQL_CATALOG: &str = concat!(
+    "SELECT ",
+    category_columns!(),
+    ", COUNT(*) OVER() AS __list_total FROM ai_plugin_category ",
+    "WHERE tenant_id IN (0, $1) AND ",
+    catalog_visible_filter!(),
+    " AND ",
+    category_keyword_predicate!(),
+    " AND ",
+    category_code_predicate!(),
+    " ORDER BY sort_order ASC, category_code ASC LIMIT $4 OFFSET $5"
+);
+
+/// Case-folded `%keyword%` pattern bound to the keyword placeholders; `None`
+/// keeps the unfiltered view.
+fn keyword_pattern(keyword: Option<&str>) -> Option<String> {
+    keyword
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| format!("%{}%", value.to_lowercase()))
+}
+
+/// Reads the `COUNT(*) OVER()` total from the first row and maps the page.
+///
+/// The window counts the whole filtered set, so an in-range page carries the
+/// exact total. A page past the end has no row to carry it and reports zero
+/// here; the paged readers re-read the first row of the same query in that case
+/// so `pageInfo.totalItems` never depends on the requested page.
+fn page<T>(
+    rows: Vec<sqlx::postgres::PgRow>,
+    mapper: fn(&sqlx::postgres::PgRow) -> PluginsResult<T>,
+) -> PluginsResult<(Vec<T>, i64)> {
+    let total = rows
+        .first()
+        .and_then(|row| row.try_get::<i64, _>(LIST_TOTAL_SQL_COLUMN).ok())
+        .unwrap_or(0);
+    let items = rows.iter().map(mapper).collect::<PluginsResult<Vec<_>>>()?;
+    Ok((items, total))
+}
 
 fn map_sqlx(error: sqlx::Error) -> PluginsServiceError {
     PluginsServiceError::Repository(error.to_string())
@@ -188,6 +336,76 @@ pub async fn list_catalog_categories(
     rows.iter().map(row_to_category).collect()
 }
 
+/// Admin category page with store-side filtering and an exact filtered total.
+pub async fn list_categories_page(
+    pool: &PgPool,
+    tenant_id: u64,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+    let rows = sqlx::query(CATEGORY_PAGE_SQL_ADMIN)
+        .bind(tenant_id as i64)
+        .bind(keyword_pattern(keyword))
+        .bind(filter.category_code())
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    let (items, mut total) = page(rows, row_to_category)?;
+    if items.is_empty() && offset > 0 {
+        total = sqlx::query(CATEGORY_PAGE_SQL_ADMIN)
+            .bind(tenant_id as i64)
+            .bind(keyword_pattern(keyword))
+            .bind(filter.category_code())
+            .bind(1_i64)
+            .bind(0_i64)
+            .fetch_optional(pool)
+            .await
+            .map_err(map_sqlx)?
+            .and_then(|row| row.try_get::<i64, _>(LIST_TOTAL_SQL_COLUMN).ok())
+            .unwrap_or(0);
+    }
+    Ok((items, total))
+}
+
+/// Catalog category page: the total counts only the visible, filtered rows.
+pub async fn list_catalog_categories_page(
+    pool: &PgPool,
+    tenant_id: u64,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> PluginsResult<(Vec<PluginCategoryRecord>, i64)> {
+    let rows = sqlx::query(CATEGORY_PAGE_SQL_CATALOG)
+        .bind(tenant_id as i64)
+        .bind(keyword_pattern(keyword))
+        .bind(filter.category_code())
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    let (items, mut total) = page(rows, row_to_category)?;
+    if items.is_empty() && offset > 0 {
+        total = sqlx::query(CATEGORY_PAGE_SQL_CATALOG)
+            .bind(tenant_id as i64)
+            .bind(keyword_pattern(keyword))
+            .bind(filter.category_code())
+            .bind(1_i64)
+            .bind(0_i64)
+            .fetch_optional(pool)
+            .await
+            .map_err(map_sqlx)?
+            .and_then(|row| row.try_get::<i64, _>(LIST_TOTAL_SQL_COLUMN).ok())
+            .unwrap_or(0);
+    }
+    Ok((items, total))
+}
+
 pub async fn get_category(
     pool: &PgPool,
     tenant_id: u64,
@@ -275,6 +493,43 @@ pub async fn list_plugins(pool: &PgPool, tenant_id: u64) -> PluginsResult<Vec<Pl
     rows.iter().map(row_to_plugin).collect()
 }
 
+/// Admin plugin page with store-side filtering and an exact filtered total.
+pub async fn list_plugins_page(
+    pool: &PgPool,
+    tenant_id: u64,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+    let rows = sqlx::query(PLUGIN_PAGE_SQL_ADMIN)
+        .bind(tenant_id as i64)
+        .bind(keyword_pattern(keyword))
+        .bind(filter.category_code())
+        .bind(filter.role_codes().to_vec())
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    let (items, mut total) = page(rows, row_to_plugin)?;
+    if items.is_empty() && offset > 0 {
+        total = sqlx::query(PLUGIN_PAGE_SQL_ADMIN)
+            .bind(tenant_id as i64)
+            .bind(keyword_pattern(keyword))
+            .bind(filter.category_code())
+            .bind(filter.role_codes().to_vec())
+            .bind(1_i64)
+            .bind(0_i64)
+            .fetch_optional(pool)
+            .await
+            .map_err(map_sqlx)?
+            .and_then(|row| row.try_get::<i64, _>(LIST_TOTAL_SQL_COLUMN).ok())
+            .unwrap_or(0);
+    }
+    Ok((items, total))
+}
+
 /// Catalog-visible plugins: only `active` rows, newest first.
 ///
 /// Draft, disabled and archived plugins stay admin-only through
@@ -298,6 +553,43 @@ pub async fn list_catalog_plugins(
         .await
         .map_err(map_sqlx)?;
     rows.iter().map(row_to_plugin).collect()
+}
+
+/// Catalog plugin page: the total counts only the visible, filtered rows.
+pub async fn list_catalog_plugins_page(
+    pool: &PgPool,
+    tenant_id: u64,
+    filter: &CatalogViewFilter,
+    keyword: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> PluginsResult<(Vec<PluginRecord>, i64)> {
+    let rows = sqlx::query(PLUGIN_PAGE_SQL_CATALOG)
+        .bind(tenant_id as i64)
+        .bind(keyword_pattern(keyword))
+        .bind(filter.category_code())
+        .bind(filter.role_codes().to_vec())
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(map_sqlx)?;
+    let (items, mut total) = page(rows, row_to_plugin)?;
+    if items.is_empty() && offset > 0 {
+        total = sqlx::query(PLUGIN_PAGE_SQL_CATALOG)
+            .bind(tenant_id as i64)
+            .bind(keyword_pattern(keyword))
+            .bind(filter.category_code())
+            .bind(filter.role_codes().to_vec())
+            .bind(1_i64)
+            .bind(0_i64)
+            .fetch_optional(pool)
+            .await
+            .map_err(map_sqlx)?
+            .and_then(|row| row.try_get::<i64, _>(LIST_TOTAL_SQL_COLUMN).ok())
+            .unwrap_or(0);
+    }
+    Ok((items, total))
 }
 
 pub async fn get_plugin(
@@ -484,4 +776,44 @@ fn bind_string_list(items: &[String], field: &str) -> PluginsResult<serde_json::
     serde_json::from_str(&encoded).map_err(|error| {
         PluginsServiceError::Repository(format!("encode {field} json failed: {error}"))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paged_queries_select_through_the_documented_visibility_filter() {
+        assert!(PLUGIN_PAGE_SQL_ADMIN.contains(ACTIVE_ENTITY_FILTER));
+        assert!(PLUGIN_PAGE_SQL_CATALOG.contains(CATALOG_VISIBLE_FILTER));
+        assert!(CATEGORY_PAGE_SQL_ADMIN.contains(ACTIVE_ENTITY_FILTER));
+        assert!(CATEGORY_PAGE_SQL_CATALOG.contains(CATALOG_VISIBLE_FILTER));
+
+        // A copy-paste swap would list admin-only rows (or hide live ones).
+        assert!(!PLUGIN_PAGE_SQL_ADMIN.contains(CATALOG_VISIBLE_FILTER));
+        assert!(!PLUGIN_PAGE_SQL_CATALOG.contains(ACTIVE_ENTITY_FILTER));
+        assert!(!CATEGORY_PAGE_SQL_ADMIN.contains(CATALOG_VISIBLE_FILTER));
+        assert!(!CATEGORY_PAGE_SQL_CATALOG.contains(ACTIVE_ENTITY_FILTER));
+    }
+
+    #[test]
+    fn paged_queries_count_and_window_in_one_statement() {
+        for sql in [PLUGIN_PAGE_SQL_ADMIN, PLUGIN_PAGE_SQL_CATALOG] {
+            assert!(sql.contains("COUNT(*) OVER()"));
+            assert!(sql.contains(LIST_TOTAL_SQL_COLUMN));
+            assert!(sql.contains("LIMIT $5 OFFSET $6"));
+            assert!(sql.contains(plugin_keyword_predicate!()));
+            assert!(sql.contains(category_code_predicate!()));
+            assert!(sql.contains(plugin_role_predicate!()));
+        }
+        for sql in [CATEGORY_PAGE_SQL_ADMIN, CATEGORY_PAGE_SQL_CATALOG] {
+            assert!(sql.contains("COUNT(*) OVER()"));
+            assert!(sql.contains(LIST_TOTAL_SQL_COLUMN));
+            assert!(sql.contains("LIMIT $4 OFFSET $5"));
+            assert!(sql.contains(category_keyword_predicate!()));
+            assert!(sql.contains(category_code_predicate!()));
+            // Categories carry no role list, so no role predicate is applied.
+            assert!(!sql.contains("allowed_role_codes_json"));
+        }
+    }
 }

@@ -1,8 +1,8 @@
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginLifecycleStatus, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
-use crate::response::{item_data, paginate_items, ApiResult};
+use crate::response::{item_data, page_data_from_total, ApiProblem, ApiResult};
 
 pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
     service: &sdkwork_intelligence_plugins_service::PluginsService<R>,
@@ -11,8 +11,19 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
 ) -> ApiResult<SdkWorkPageData<PluginRecord>> {
     query.validate()?;
     // The marketplace lists what a visitor can install: only active plugins.
-    let items = service.list_catalog_plugins(tenant_id).await?;
-    Ok(paginate_items(filter_plugins(items, query), query))
+    // The store applies the view filter and the keyword before it cuts the
+    // page, so `totalItems` is the filtered catalogue size.
+    let (limit, offset) = page_window(query);
+    let (items, total) = service
+        .list_catalog_plugins_page(
+            tenant_id,
+            &query.catalog_filter(),
+            query.search_keyword(),
+            limit,
+            offset,
+        )
+        .await?;
+    Ok(page_data_from_total(items, total, query))
 }
 
 pub async fn retrieve_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
@@ -21,6 +32,13 @@ pub async fn retrieve_plugin<R: sdkwork_intelligence_plugins_service::PluginsRep
     plugin_key: &str,
 ) -> ApiResult<SdkWorkResourceData<PluginRecord>> {
     let record = service.get_plugin(tenant_id, plugin_key).await?;
+    // The marketplace retrieves only what it would list: a plugin the catalog
+    // hides must not be readable by its key either.
+    if record.lifecycle_status != PluginLifecycleStatus::Active {
+        return Err(ApiProblem::not_found(format!(
+            "plugin {plugin_key} is not published"
+        )));
+    }
     Ok(item_data(record))
 }
 
@@ -32,11 +50,32 @@ pub async fn list_categories<R: sdkwork_intelligence_plugins_service::PluginsRep
     query.validate()?;
     // The marketplace lists the taxonomy a visitor can file against: only
     // active categories, in registry order. Archived/draft categories stay
-    // visible to the backend administration surface only.
-    let items = service.list_catalog_categories(tenant_id).await?;
-    Ok(paginate_items(filter_categories(items, query), query))
+    // visible to the backend administration surface only, and the store total
+    // counts only the rows this surface can see.
+    let (limit, offset) = page_window(query);
+    let (items, total) = service
+        .list_catalog_categories_page(
+            tenant_id,
+            &query.catalog_filter(),
+            query.search_keyword(),
+            limit,
+            offset,
+        )
+        .await?;
+    Ok(page_data_from_total(items, total, query))
 }
 
+/// `(limit, offset)` window handed to the store paged query.
+fn page_window(query: &SdkWorkListQuery) -> (i64, i64) {
+    let limit = i64::from(query.effective_page_size());
+    let offset = (i64::from(query.effective_page()) - 1) * limit;
+    (limit, offset)
+}
+
+/// Reference predicate for the plugin catalog view. The HTTP path now pushes
+/// both filters and the keyword into the repository; this helper stays as the
+/// unit-test oracle for the rules the store predicates must mirror.
+#[cfg(test)]
 fn filter_by_keyword<T, F>(items: Vec<T>, query: &SdkWorkListQuery, matches: F) -> Vec<T>
 where
     F: Fn(&T, &str) -> bool,
@@ -51,6 +90,7 @@ where
         .collect()
 }
 
+#[cfg(test)]
 fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<PluginRecord> {
     let filter = query.catalog_filter();
     let items = items
@@ -76,16 +116,6 @@ fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<Plu
                 .tags
                 .iter()
                 .any(|tag| tag.to_lowercase().contains(keyword))
-    })
-}
-
-fn filter_categories(
-    items: Vec<PluginCategoryRecord>,
-    query: &SdkWorkListQuery,
-) -> Vec<PluginCategoryRecord> {
-    filter_by_keyword(items, query, |item, keyword| {
-        item.name.to_lowercase().contains(keyword)
-            || item.category_code.to_lowercase().contains(keyword)
     })
 }
 
@@ -256,5 +286,177 @@ mod tests {
             .await
             .expect("catalog plugins");
         assert_eq!(keys(&page.items), vec!["live-plugin"]);
+    }
+
+    #[tokio::test]
+    async fn marketplace_retrieve_hides_unpublished_plugins() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for (key, status) in [
+            ("live-plugin", PluginLifecycleStatus::Active),
+            ("draft-plugin", PluginLifecycleStatus::Draft),
+        ] {
+            let mut record = plugin(key, Some("code-development"), &[]);
+            record.lifecycle_status = status;
+            repository
+                .create_plugin(7, 1, record)
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+
+        let live = retrieve_plugin(&service, 7, "live-plugin")
+            .await
+            .expect("a published plugin is readable");
+        assert_eq!(live.item.plugin_key, "live-plugin");
+
+        // The catalog list hides drafts; retrieving one by key must 404 rather
+        // than leak it.
+        let hidden = retrieve_plugin(&service, 7, "draft-plugin")
+            .await
+            .expect_err("a draft plugin is not part of the catalog");
+        assert!(
+            format!("{hidden:?}").contains("is not published"),
+            "expected a not-found catalog error, got {hidden:?}"
+        );
+
+        // The administration surface still reads it.
+        let admin = service
+            .get_plugin(7, "draft-plugin")
+            .await
+            .expect("admin reads the draft");
+        assert_eq!(admin.lifecycle_status, PluginLifecycleStatus::Draft);
+    }
+
+    fn paged_query(page: i32, page_size: i32, category: Option<&str>) -> SdkWorkListQuery {
+        SdkWorkListQuery {
+            page: Some(page),
+            page_size: Some(page_size),
+            catalog: CatalogViewQuery {
+                category_code: category.map(str::to_string),
+                role_codes: None,
+            },
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn page_two_returns_the_filtered_tail_and_the_filtered_total() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for key in ["alpha", "beta", "gamma"] {
+            repository
+                .create_plugin(7, 1, plugin(key, Some("data-retrieval"), &[]))
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+
+        let first = list_plugins(&service, 7, &paged_query(1, 2, Some("data-retrieval")))
+            .await
+            .expect("first page");
+        let second = list_plugins(&service, 7, &paged_query(2, 2, Some("data-retrieval")))
+            .await
+            .expect("second page");
+
+        assert_eq!(first.items.len(), 2);
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.page_info.total_items.as_deref(), Some("3"));
+        assert_eq!(second.page_info.total_pages, Some(2));
+        assert_eq!(second.page_info.has_more, Some(false));
+
+        let tail_key = second.items[0].plugin_key.as_str();
+        let mut seen = keys(&first.items);
+        assert!(!seen.contains(&tail_key));
+        seen.push(tail_key);
+        seen.sort_unstable();
+        assert_eq!(seen, vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[tokio::test]
+    async fn category_filter_pages_the_filtered_total_not_the_unfiltered_one() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for key in ["search", "index", "crawl"] {
+            repository
+                .create_plugin(7, 1, plugin(key, Some("data-retrieval"), &[]))
+                .await
+                .expect("seed data-retrieval plugin");
+        }
+        for key in ["ocr", "segment"] {
+            repository
+                .create_plugin(7, 1, plugin(key, Some("image-processing"), &[]))
+                .await
+                .expect("seed image-processing plugin");
+        }
+        let service = PluginsService::new(repository);
+
+        let page = list_plugins(&service, 7, &paged_query(1, 2, Some("data-retrieval")))
+            .await
+            .expect("filtered page");
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(
+            page.page_info.total_items.as_deref(),
+            Some("3"),
+            "totalItems must count the filtered rows, not every plugin"
+        );
+        assert!(page
+            .items
+            .iter()
+            .all(|item| item.category_code.as_deref() == Some("data-retrieval")));
+    }
+
+    #[tokio::test]
+    async fn catalog_pages_hide_admin_only_plugins_across_pages() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for (key, status) in [
+            ("live-one", PluginLifecycleStatus::Active),
+            ("live-two", PluginLifecycleStatus::Active),
+            ("draft", PluginLifecycleStatus::Draft),
+            ("archived", PluginLifecycleStatus::Archived),
+        ] {
+            let mut record = plugin(key, Some("code-development"), &[]);
+            record.lifecycle_status = status;
+            repository
+                .create_plugin(7, 1, record)
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+
+        let admin = service.list_plugins(7).await.expect("admin plugins");
+        assert_eq!(admin.len(), 4);
+
+        let mut visible = Vec::new();
+        for page in 1..=2 {
+            let result = list_plugins(&service, 7, &paged_query(page, 1, None))
+                .await
+                .expect("catalog page");
+            assert_eq!(result.items.len(), 1);
+            assert_eq!(result.page_info.total_items.as_deref(), Some("2"));
+            assert!(result
+                .items
+                .iter()
+                .all(|item| item.lifecycle_status == PluginLifecycleStatus::Active));
+            visible.extend(keys(&result.items).into_iter().map(str::to_string));
+        }
+        visible.sort_unstable();
+        assert_eq!(
+            visible,
+            vec!["live-one".to_string(), "live-two".to_string()]
+        );
     }
 }

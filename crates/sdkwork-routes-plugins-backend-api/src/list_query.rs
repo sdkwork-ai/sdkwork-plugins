@@ -38,7 +38,21 @@ impl SdkWorkListQuery {
                 "cursor pagination is not supported yet; use page and page_size",
             ));
         }
-        Ok(())
+        // An out-of-range window is rejected (`40003`) rather than clamped: a
+        // client that asked for more rows than the operation serves must learn
+        // it, not silently receive a smaller page.
+        sdkwork_utils_rust::http_api::validated_offset_list_params(
+            self.page.map(i64::from),
+            self.page_size.map(i64::from),
+        )
+        .map(|_| ())
+        .map_err(|_| {
+            ApiProblem::invalid_parameter(format!(
+                "page must be between 1 and {}, page_size must be between 1 and {}",
+                sdkwork_utils_rust::http_api::MAX_LIST_PAGE,
+                sdkwork_utils_rust::http_api::MAX_LIST_PAGE_SIZE
+            ))
+        })
     }
 
     pub fn effective_page_size(&self) -> i32 {
@@ -95,6 +109,47 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(oversized.effective_page_size(), 200);
+    }
+
+    /// `PAGINATION_SPEC` §3: an out-of-range window is rejected (`40003`), not
+    /// clamped — a caller that asked for more rows than the operation serves
+    /// must see the failure instead of silently receiving a smaller page.
+    #[test]
+    fn validate_rejects_an_out_of_range_page_window() {
+        for query in [
+            SdkWorkListQuery {
+                page: Some(0),
+                ..Default::default()
+            },
+            SdkWorkListQuery {
+                page: Some(10_001),
+                ..Default::default()
+            },
+            SdkWorkListQuery {
+                page_size: Some(0),
+                ..Default::default()
+            },
+            SdkWorkListQuery {
+                page_size: Some(201),
+                ..Default::default()
+            },
+        ] {
+            let error = query
+                .validate()
+                .expect_err("out-of-range paging must be rejected");
+            assert!(
+                format!("{error:?}").contains("page must be between 1 and"),
+                "expected the invalid-parameter message, got {error:?}"
+            );
+        }
+
+        assert!(SdkWorkListQuery {
+            page: Some(2),
+            page_size: Some(200),
+            ..Default::default()
+        }
+        .validate()
+        .is_ok());
     }
 
     #[test]
