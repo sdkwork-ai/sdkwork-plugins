@@ -1,6 +1,4 @@
-use sdkwork_plugins_contract::{
-    PERM_MARKETPLACE_INSTALL, PERM_MARKETPLACE_READ,
-};
+use sdkwork_plugins_contract::{PERM_MARKETPLACE_INSTALL, PERM_MARKETPLACE_READ};
 use sdkwork_web_core::{HttpMethod, HttpRoute, HttpRouteManifest};
 
 const fn plugins_route(

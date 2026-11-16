@@ -45,8 +45,15 @@ future install lifecycle command surface; no route carries it yet.
     those roles plus the plugins open to every role (empty
     `allowed_role_codes`). Neither filter widens tenant or visibility scoping.
 
-- int64 wire fields (`id`, `version`, `categoryId`) are decimal strings with
-  `x-sdkwork-int64-string: true` (`API_SPEC.md` section 13.6).
+- int64 wire fields (`id`, `organizationId`, `ownerUserId`, `version`,
+  `categoryId`) are decimal strings with `x-sdkwork-int64-string: true`
+  (`API_SPEC.md` section 13.6).
+- Catalog reads (`GET /app/v3/api/plugins` and
+  `GET /app/v3/api/plugins/{pluginKey}`) are scoped by `ai_plugin.visibility`:
+  `tenant`/`public` are visible to every caller of the tenant, `organization`
+  only inside the caller's `organization_id` (`0` is the tenant-level
+  sentinel), and `private` only to the `owner_user_id`. Backend admin reads
+  stay tenant-wide and unscoped.
 - Record and command property names are camelCase, matching the Rust serde
   `rename_all = "camelCase"` projections in `sdkwork-plugins-contract`.
 

@@ -111,19 +111,46 @@ impl PluginsRepository for SqlxPluginsRepository {
         postgres::list_plugins_page(&self.pool, tenant_id, filter, keyword, limit, offset).await
     }
 
-    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
-        postgres::list_catalog_plugins(&self.pool, tenant_id).await
+    async fn list_catalog_plugins(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+    ) -> PluginsResult<Vec<PluginRecord>> {
+        postgres::list_catalog_plugins(&self.pool, tenant_id, organization_id, user_id).await
     }
 
     async fn list_catalog_plugins_page(
         &self,
         tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
         filter: &CatalogViewFilter,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
-        postgres::list_catalog_plugins_page(&self.pool, tenant_id, filter, keyword, limit, offset)
+        postgres::list_catalog_plugins_page(
+            &self.pool,
+            tenant_id,
+            organization_id,
+            user_id,
+            filter,
+            keyword,
+            limit,
+            offset,
+        )
+        .await
+    }
+
+    async fn get_catalog_plugin(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginRecord>> {
+        postgres::get_catalog_plugin(&self.pool, tenant_id, organization_id, user_id, plugin_key)
             .await
     }
 

@@ -91,22 +91,43 @@ pub trait PluginsRepository: Send + Sync {
         offset: i64,
     ) -> PluginsResult<(Vec<PluginRecord>, i64)>;
 
-    /// Catalog-visible plugins: only `active` rows.
+    /// Catalog-visible plugins: only `active` rows inside the caller's
+    /// visibility scope.
     ///
     /// The marketplace lists what a visitor can install; draft, disabled and
-    /// archived plugins stay admin-only.
-    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>>;
+    /// archived plugins stay admin-only, and `organization`/`private` rows are
+    /// filtered to the caller's organization and user id.
+    async fn list_catalog_plugins(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+    ) -> PluginsResult<Vec<PluginRecord>>;
 
     /// Paged catalog-visible plugins; the total is the filtered, visible row
-    /// count so `pageInfo.totalItems` never counts admin-only rows.
+    /// count so `pageInfo.totalItems` never counts admin-only or out-of-scope
+    /// rows.
     async fn list_catalog_plugins_page(
         &self,
         tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
         filter: &CatalogViewFilter,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> PluginsResult<(Vec<PluginRecord>, i64)>;
+
+    /// Catalog plugin by key: `None` when no `active` row is inside the
+    /// caller's visibility scope, so the marketplace answers 404 for a plugin
+    /// it would not list.
+    async fn get_catalog_plugin(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginRecord>>;
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord>;
 
@@ -220,21 +241,53 @@ impl<R: PluginsRepository> PluginsService<R> {
     }
 
     /// Catalog-visible plugins for the marketplace surface.
-    pub async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
-        self.repository.list_catalog_plugins(tenant_id).await
+    pub async fn list_catalog_plugins(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+    ) -> PluginsResult<Vec<PluginRecord>> {
+        self.repository
+            .list_catalog_plugins(tenant_id, organization_id, user_id)
+            .await
     }
 
-    /// One marketplace plugin page; admin-only rows never reach the total.
+    /// One marketplace plugin page; admin-only and out-of-scope rows never
+    /// reach the total.
     pub async fn list_catalog_plugins_page(
         &self,
         tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
         filter: &CatalogViewFilter,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
         self.repository
-            .list_catalog_plugins_page(tenant_id, filter, keyword, limit, offset)
+            .list_catalog_plugins_page(
+                tenant_id,
+                organization_id,
+                user_id,
+                filter,
+                keyword,
+                limit,
+                offset,
+            )
+            .await
+    }
+
+    /// One marketplace plugin by key, or `None` when the caller cannot see it.
+    pub async fn get_catalog_plugin(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginRecord>> {
+        validation::validate_plugin_key(plugin_key)?;
+        self.repository
+            .get_catalog_plugin(tenant_id, organization_id, user_id, plugin_key)
             .await
     }
 
@@ -250,10 +303,16 @@ impl<R: PluginsRepository> PluginsService<R> {
     pub async fn create_plugin(
         &self,
         tenant_id: u64,
+        organization_id: u64,
         operator_id: u64,
         command: CreatePluginCommand,
     ) -> PluginsResult<PluginRecord> {
-        let record = validation::plugin_record_from_create(tenant_id, operator_id, &command)?;
+        let record = validation::plugin_record_from_create(
+            tenant_id,
+            organization_id,
+            operator_id,
+            &command,
+        )?;
         if self
             .repository
             .get_plugin(tenant_id, &record.plugin_key)

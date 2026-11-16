@@ -1,4 +1,4 @@
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginLifecycleStatus, PluginRecord};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
@@ -7,16 +7,21 @@ use crate::response::{item_data, page_data_from_total, ApiProblem, ApiResult};
 pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
     service: &sdkwork_intelligence_plugins_service::PluginsService<R>,
     tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
     query: &SdkWorkListQuery,
 ) -> ApiResult<SdkWorkPageData<PluginRecord>> {
     query.validate()?;
-    // The marketplace lists what a visitor can install: only active plugins.
-    // The store applies the view filter and the keyword before it cuts the
-    // page, so `totalItems` is the filtered catalogue size.
+    // The marketplace lists what a visitor can install: only active plugins
+    // inside the caller's visibility scope. The store applies the scope, view
+    // filter and keyword before it cuts the page, so `totalItems` is the
+    // visible catalogue size.
     let (limit, offset) = page_window(query);
     let (items, total) = service
         .list_catalog_plugins_page(
             tenant_id,
+            organization_id,
+            user_id,
             &query.catalog_filter(),
             query.search_keyword(),
             limit,
@@ -29,16 +34,21 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
 pub async fn retrieve_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
     service: &sdkwork_intelligence_plugins_service::PluginsService<R>,
     tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
     plugin_key: &str,
 ) -> ApiResult<SdkWorkResourceData<PluginRecord>> {
-    let record = service.get_plugin(tenant_id, plugin_key).await?;
-    // The marketplace retrieves only what it would list: a plugin the catalog
-    // hides must not be readable by its key either.
-    if record.lifecycle_status != PluginLifecycleStatus::Active {
+    // The marketplace retrieves only what it would list: an unpublished or
+    // out-of-scope plugin must not be readable by its key either, so the store
+    // query carries the same lifecycle and visibility gate as the list.
+    let Some(record) = service
+        .get_catalog_plugin(tenant_id, organization_id, user_id, plugin_key)
+        .await?
+    else {
         return Err(ApiProblem::not_found(format!(
-            "plugin {plugin_key} is not published"
+            "plugin {plugin_key} is not visible in the catalog"
         )));
-    }
+    };
     Ok(item_data(record))
 }
 
@@ -121,6 +131,7 @@ fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<Plu
 
 #[cfg(test)]
 mod tests {
+    use sdkwork_intelligence_plugins_service::PluginsRepository;
     use sdkwork_plugins_contract::{
         PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
     };
@@ -132,6 +143,8 @@ mod tests {
         PluginRecord {
             id: 1,
             uuid: String::new(),
+            organization_id: 0,
+            owner_user_id: 0,
             plugin_key: key.to_string(),
             name: key.to_string(),
             description: None,
@@ -173,6 +186,39 @@ mod tests {
             plugin("ocr", Some("image-processing"), &[]),
             plugin("audit", Some("document-processing"), &["org_auditor"]),
         ]
+    }
+
+    fn scoped_plugin(
+        key: &str,
+        visibility: PluginVisibility,
+        organization_id: u64,
+        owner_user_id: u64,
+    ) -> PluginRecord {
+        let mut record = plugin(key, Some("code-development"), &[]);
+        record.visibility = visibility;
+        record.organization_id = organization_id;
+        record.owner_user_id = owner_user_id;
+        record
+    }
+
+    async fn seed(
+        repository: &sdkwork_intelligence_plugins_service::InMemoryPluginRepository,
+        tenant_id: u64,
+        record: PluginRecord,
+    ) {
+        repository
+            .create_plugin(tenant_id, 1, record)
+            .await
+            .expect("seed plugin");
+    }
+
+    fn sorted_keys(items: &[PluginRecord]) -> Vec<String> {
+        let mut keys = items
+            .iter()
+            .map(|item| item.plugin_key.clone())
+            .collect::<Vec<_>>();
+        keys.sort();
+        keys
     }
 
     #[test]
@@ -282,7 +328,7 @@ mod tests {
         let admin = service.list_plugins(7).await.expect("admin plugins");
         assert_eq!(admin.len(), 3);
 
-        let page = list_plugins(&service, 7, &SdkWorkListQuery::default())
+        let page = list_plugins(&service, 7, 0, 0, &SdkWorkListQuery::default())
             .await
             .expect("catalog plugins");
         assert_eq!(keys(&page.items), vec!["live-plugin"]);
@@ -308,18 +354,18 @@ mod tests {
         }
         let service = PluginsService::new(repository);
 
-        let live = retrieve_plugin(&service, 7, "live-plugin")
+        let live = retrieve_plugin(&service, 7, 0, 0, "live-plugin")
             .await
             .expect("a published plugin is readable");
         assert_eq!(live.item.plugin_key, "live-plugin");
 
         // The catalog list hides drafts; retrieving one by key must 404 rather
         // than leak it.
-        let hidden = retrieve_plugin(&service, 7, "draft-plugin")
+        let hidden = retrieve_plugin(&service, 7, 0, 0, "draft-plugin")
             .await
             .expect_err("a draft plugin is not part of the catalog");
         assert!(
-            format!("{hidden:?}").contains("is not published"),
+            format!("{hidden:?}").contains("is not visible in the catalog"),
             "expected a not-found catalog error, got {hidden:?}"
         );
 
@@ -358,12 +404,24 @@ mod tests {
         }
         let service = PluginsService::new(repository);
 
-        let first = list_plugins(&service, 7, &paged_query(1, 2, Some("data-retrieval")))
-            .await
-            .expect("first page");
-        let second = list_plugins(&service, 7, &paged_query(2, 2, Some("data-retrieval")))
-            .await
-            .expect("second page");
+        let first = list_plugins(
+            &service,
+            7,
+            0,
+            0,
+            &paged_query(1, 2, Some("data-retrieval")),
+        )
+        .await
+        .expect("first page");
+        let second = list_plugins(
+            &service,
+            7,
+            0,
+            0,
+            &paged_query(2, 2, Some("data-retrieval")),
+        )
+        .await
+        .expect("second page");
 
         assert_eq!(first.items.len(), 2);
         assert_eq!(second.items.len(), 1);
@@ -400,9 +458,15 @@ mod tests {
         }
         let service = PluginsService::new(repository);
 
-        let page = list_plugins(&service, 7, &paged_query(1, 2, Some("data-retrieval")))
-            .await
-            .expect("filtered page");
+        let page = list_plugins(
+            &service,
+            7,
+            0,
+            0,
+            &paged_query(1, 2, Some("data-retrieval")),
+        )
+        .await
+        .expect("filtered page");
         assert_eq!(page.items.len(), 2);
         assert_eq!(
             page.page_info.total_items.as_deref(),
@@ -442,7 +506,7 @@ mod tests {
 
         let mut visible = Vec::new();
         for page in 1..=2 {
-            let result = list_plugins(&service, 7, &paged_query(page, 1, None))
+            let result = list_plugins(&service, 7, 0, 0, &paged_query(page, 1, None))
                 .await
                 .expect("catalog page");
             assert_eq!(result.items.len(), 1);
@@ -458,5 +522,165 @@ mod tests {
             visible,
             vec!["live-one".to_string(), "live-two".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn catalog_hides_private_plugins_from_other_users() {
+        let repository = sdkwork_intelligence_plugins_service::InMemoryPluginRepository::default();
+        seed(
+            &repository,
+            7,
+            scoped_plugin("owner-only", PluginVisibility::Private, 0, 42),
+        )
+        .await;
+        let service = sdkwork_intelligence_plugins_service::PluginsService::new(repository);
+
+        let owner = list_plugins(&service, 7, 0, 42, &SdkWorkListQuery::default())
+            .await
+            .expect("owner catalog");
+        assert_eq!(keys(&owner.items), vec!["owner-only"]);
+        assert_eq!(owner.page_info.total_items.as_deref(), Some("1"));
+
+        // Same tenant, same organization, different user: hidden from the list
+        // and from its own retrieve route.
+        let colleague = list_plugins(&service, 7, 0, 43, &SdkWorkListQuery::default())
+            .await
+            .expect("colleague catalog");
+        assert!(colleague.items.is_empty());
+        assert_eq!(
+            colleague.page_info.total_items.as_deref(),
+            Some("0"),
+            "the visible total must not count another user's private plugin"
+        );
+        let hidden = retrieve_plugin(&service, 7, 0, 43, "owner-only")
+            .await
+            .expect_err("a private plugin is not readable by another user");
+        assert!(
+            format!("{hidden:?}").contains("status: 404"),
+            "expected a 404 problem, got {hidden:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn catalog_scopes_organization_plugins_to_the_callers_organization() {
+        let repository = sdkwork_intelligence_plugins_service::InMemoryPluginRepository::default();
+        seed(
+            &repository,
+            7,
+            scoped_plugin("org-17-tool", PluginVisibility::Organization, 17, 0),
+        )
+        .await;
+        let service = sdkwork_intelligence_plugins_service::PluginsService::new(repository);
+
+        // Every caller inside organization 17 sees it, whatever their user id.
+        for user_id in [0, 99] {
+            let page = list_plugins(&service, 7, 17, user_id, &SdkWorkListQuery::default())
+                .await
+                .expect("same-organization catalog");
+            assert_eq!(keys(&page.items), vec!["org-17-tool"]);
+            assert_eq!(page.page_info.total_items.as_deref(), Some("1"));
+        }
+
+        // Another organization, including the tenant-level `0` sentinel, does
+        // not see it.
+        for (organization_id, user_id) in [(0, 0), (18, 42)] {
+            let page = list_plugins(
+                &service,
+                7,
+                organization_id,
+                user_id,
+                &SdkWorkListQuery::default(),
+            )
+            .await
+            .expect("other-organization catalog");
+            assert!(
+                page.items.is_empty(),
+                "organization {organization_id} must not see another organization's plugin"
+            );
+            assert_eq!(page.page_info.total_items.as_deref(), Some("0"));
+            let hidden = retrieve_plugin(&service, 7, organization_id, user_id, "org-17-tool")
+                .await
+                .expect_err("an organization plugin is not readable by another organization");
+            assert!(format!("{hidden:?}").contains("status: 404"));
+        }
+
+        // The admin surface stays tenant-wide.
+        let admin = service
+            .get_plugin(7, "org-17-tool")
+            .await
+            .expect("admin reads the organization plugin");
+        assert_eq!(admin.organization_id, 17);
+    }
+
+    #[tokio::test]
+    async fn catalog_lists_tenant_and_public_plugins_for_every_caller() {
+        let repository = sdkwork_intelligence_plugins_service::InMemoryPluginRepository::default();
+        seed(
+            &repository,
+            7,
+            scoped_plugin("tenant-plugin", PluginVisibility::Tenant, 0, 0),
+        )
+        .await;
+        seed(
+            &repository,
+            7,
+            scoped_plugin("public-plugin", PluginVisibility::Public, 0, 0),
+        )
+        .await;
+        let service = sdkwork_intelligence_plugins_service::PluginsService::new(repository);
+
+        for (organization_id, user_id) in [(0, 0), (17, 42), (18, 99)] {
+            let page = list_plugins(
+                &service,
+                7,
+                organization_id,
+                user_id,
+                &SdkWorkListQuery::default(),
+            )
+            .await
+            .expect("catalog page");
+            assert_eq!(
+                sorted_keys(&page.items),
+                vec!["public-plugin".to_string(), "tenant-plugin".to_string()],
+                "tenant/public plugins are visible to every caller of the tenant"
+            );
+            assert_eq!(page.page_info.total_items.as_deref(), Some("2"));
+        }
+    }
+
+    #[tokio::test]
+    async fn catalog_retrieve_404s_hidden_plugins_while_admin_reads_them() {
+        let repository = sdkwork_intelligence_plugins_service::InMemoryPluginRepository::default();
+        seed(
+            &repository,
+            7,
+            scoped_plugin("private-tool", PluginVisibility::Private, 0, 42),
+        )
+        .await;
+        let mut draft = plugin("draft-tool", Some("code-development"), &[]);
+        draft.lifecycle_status = PluginLifecycleStatus::Draft;
+        seed(&repository, 7, draft).await;
+        let service = sdkwork_intelligence_plugins_service::PluginsService::new(repository);
+
+        // Another user cannot retrieve the private plugin by key...
+        let private_hidden = retrieve_plugin(&service, 7, 0, 43, "private-tool")
+            .await
+            .expect_err("a private plugin 404s for another user");
+        assert!(format!("{private_hidden:?}").contains("status: 404"));
+
+        // ...and the catalog also 404s an unpublished draft.
+        let draft_hidden = retrieve_plugin(&service, 7, 0, 0, "draft-tool")
+            .await
+            .expect_err("a draft plugin 404s on the catalog");
+        assert!(format!("{draft_hidden:?}").contains("status: 404"));
+
+        // The admin repository read keeps both rows unscoped.
+        for key in ["private-tool", "draft-tool"] {
+            let admin = service
+                .get_plugin(7, key)
+                .await
+                .expect("admin reads the hidden plugin");
+            assert_eq!(admin.plugin_key, key);
+        }
     }
 }

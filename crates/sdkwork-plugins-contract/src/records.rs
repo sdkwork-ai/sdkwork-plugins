@@ -73,6 +73,15 @@ pub struct PluginRecord {
     #[serde(with = "sdkwork_utils_rust::serde_int64")]
     pub id: i64,
     pub uuid: String,
+    /// Organization scope of the record. `0` is the tenant-level sentinel a
+    /// caller without an organization scope resolves to, so an
+    /// `organization`-visible plugin filed at `0` matches those callers only.
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64")]
+    pub organization_id: u64,
+    /// Owner of a `private` plugin. `private` rows are catalog-visible only to
+    /// this user id, in addition to the tenant boundary.
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64")]
+    pub owner_user_id: u64,
     pub plugin_key: String,
     pub name: String,
     pub description: Option<String>,

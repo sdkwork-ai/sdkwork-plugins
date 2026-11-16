@@ -11,6 +11,8 @@ fn plugin(source: Option<PluginArtifactSource>) -> PluginRecord {
     PluginRecord {
         id: 0,
         uuid: String::new(),
+        organization_id: 0,
+        owner_user_id: 0,
         plugin_key: "demo-plugin".to_string(),
         name: "Demo Plugin".to_string(),
         description: None,

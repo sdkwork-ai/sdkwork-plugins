@@ -212,6 +212,7 @@ async fn round_trips_plugin_artifact_source() {
     let record = service
         .create_plugin(
             100001,
+            0,
             1,
             CreatePluginCommand {
                 plugin_key: "demo-plugin".to_string(),

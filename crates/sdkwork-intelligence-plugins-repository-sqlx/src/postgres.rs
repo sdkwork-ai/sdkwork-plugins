@@ -38,10 +38,11 @@ macro_rules! category_columns {
 
 macro_rules! plugin_columns {
     () => {
-        "id, uuid, tenant_id, organization_id, plugin_key, name, description, category_id, \
-         category_code, version_label, provider, implementation_type, visibility, manifest_json, \
-         source_json, install_status, lifecycle_status, tags_json, allowed_role_codes_json, \
-         version, created_at, updated_at, created_by, updated_by, deleted_at"
+        "id, uuid, tenant_id, organization_id, owner_user_id, plugin_key, name, description, \
+         category_id, category_code, version_label, provider, implementation_type, visibility, \
+         manifest_json, source_json, install_status, lifecycle_status, tags_json, \
+         allowed_role_codes_json, version, created_at, updated_at, created_by, updated_by, \
+         deleted_at"
     };
 }
 
@@ -49,75 +50,135 @@ const CATEGORY_SELECT: &str = category_columns!();
 
 const PLUGIN_SELECT: &str = plugin_columns!();
 
-/// Keyword predicate for one plugin page: `$2` holds the nullable `%kw%`
-/// pattern, folded once by the caller.
+/// Keyword predicate for one plugin page: the placeholder holds the nullable
+/// `%kw%` pattern, folded once by the caller.
 macro_rules! plugin_keyword_predicate {
-    () => {
-        "($2::text IS NULL OR LOWER(plugin_key) LIKE $2 OR LOWER(name) LIKE $2 \
-         OR LOWER(COALESCE(description, '')) LIKE $2 \
-         OR LOWER(COALESCE(category_code, '')) LIKE $2 \
-         OR LOWER(tags_json::text) LIKE $2)"
+    ($keyword:literal) => {
+        concat!(
+            "(",
+            $keyword,
+            "::text IS NULL OR LOWER(plugin_key) LIKE ",
+            $keyword,
+            " OR LOWER(name) LIKE ",
+            $keyword,
+            " OR LOWER(COALESCE(description, '')) LIKE ",
+            $keyword,
+            " OR LOWER(COALESCE(category_code, '')) LIKE ",
+            $keyword,
+            " OR LOWER(tags_json::text) LIKE ",
+            $keyword,
+            ")"
+        )
     };
 }
 
-/// Keyword predicate for one category page: `$2` holds the nullable `%kw%`
-/// pattern, folded once by the caller.
+/// Keyword predicate for one category page: the placeholder holds the nullable
+/// `%kw%` pattern, folded once by the caller.
 macro_rules! category_keyword_predicate {
-    () => {
-        "($2::text IS NULL OR LOWER(name) LIKE $2 OR LOWER(category_code) LIKE $2 \
-         OR LOWER(COALESCE(description, '')) LIKE $2)"
+    ($keyword:literal) => {
+        concat!(
+            "(",
+            $keyword,
+            "::text IS NULL OR LOWER(name) LIKE ",
+            $keyword,
+            " OR LOWER(category_code) LIKE ",
+            $keyword,
+            " OR LOWER(COALESCE(description, '')) LIKE ",
+            $keyword,
+            ")"
+        )
     };
 }
 
-/// Category half of the catalog view: `$3` holds the nullable selector.
+/// Category half of the catalog view: the placeholder holds the nullable
+/// selector.
 macro_rules! category_code_predicate {
-    () => {
-        "($3::text IS NULL OR LOWER(category_code) = $3)"
+    ($selector:literal) => {
+        concat!(
+            "(",
+            $selector,
+            "::text IS NULL OR LOWER(category_code) = ",
+            $selector,
+            ")"
+        )
     };
 }
 
-/// Role half of the catalog view: `$4` holds the caller's role codes.
+/// Role half of the catalog view: the placeholder holds the caller's role
+/// codes.
 ///
 /// An empty scope keeps the all-data view, an empty assignment is open to every
 /// role, and a populated scope matches the records naming one of its codes.
 macro_rules! plugin_role_predicate {
-    () => {
-        "(cardinality($4::text[]) = 0 \
-         OR jsonb_array_length(allowed_role_codes_json) = 0 \
-         OR allowed_role_codes_json ?| $4::text[])"
+    ($roles:literal) => {
+        concat!(
+            "(cardinality(",
+            $roles,
+            "::text[]) = 0 OR jsonb_array_length(allowed_role_codes_json) = 0 \
+             OR allowed_role_codes_json ?| ",
+            $roles,
+            "::text[])"
+        )
+    };
+}
+
+/// Catalog access scope: the first placeholder is the caller's organization
+/// scope and the second the caller's user id.
+///
+/// `tenant`/`public` rows are visible to every caller of the tenant,
+/// `organization` rows only when their `organization_id` equals the caller's
+/// scope (`0` is the tenant-level sentinel, so a tenant filed at `0` matches
+/// the default no-organization caller), and `private` rows only to their
+/// owner. The admin inventory deliberately does not apply this predicate.
+macro_rules! plugin_scope_predicate {
+    ($organization:literal, $user:literal) => {
+        concat!(
+            "(visibility IN ('tenant', 'public') \
+             OR (visibility = 'organization' AND organization_id = ",
+            $organization,
+            "::bigint) \
+             OR (visibility = 'private' AND owner_user_id = ",
+            $user,
+            "::bigint))"
+        )
     };
 }
 
 /// Admin plugin page: one statement whose window count comes from the same
-/// filtered set the page is cut from.
+/// filtered set the page is cut from. Admin listings are tenant-wide and keep
+/// no catalog visibility scope.
 const PLUGIN_PAGE_SQL_ADMIN: &str = concat!(
     "SELECT ",
     plugin_columns!(),
     ", COUNT(*) OVER() AS __list_total FROM ai_plugin WHERE tenant_id = $1 AND ",
     active_entity_filter!(),
     " AND ",
-    plugin_keyword_predicate!(),
+    plugin_keyword_predicate!("$2"),
     " AND ",
-    category_code_predicate!(),
+    category_code_predicate!("$3"),
     " AND ",
-    plugin_role_predicate!(),
+    plugin_role_predicate!("$4"),
     " ORDER BY updated_at DESC, plugin_key ASC LIMIT $5 OFFSET $6"
 );
 
-/// Catalog plugin page: the marketplace reads only `active` rows, and its
-/// window count therefore never includes admin-only rows.
+/// Catalog plugin page: the marketplace reads only `active` rows, inside the
+/// caller's visibility scope, and its window count therefore never includes
+/// admin-only or out-of-scope rows. Bind order: tenant, organization, user,
+/// keyword, category, roles, limit, offset.
 const PLUGIN_PAGE_SQL_CATALOG: &str = concat!(
     "SELECT ",
     plugin_columns!(),
     ", COUNT(*) OVER() AS __list_total FROM ai_plugin WHERE tenant_id = $1 AND ",
     catalog_visible_filter!(),
     " AND ",
-    plugin_keyword_predicate!(),
+    plugin_scope_predicate!("$2", "$3"),
     " AND ",
-    category_code_predicate!(),
+    plugin_keyword_predicate!("$4"),
     " AND ",
-    plugin_role_predicate!(),
-    " ORDER BY updated_at DESC, plugin_key ASC LIMIT $5 OFFSET $6"
+    category_code_predicate!("$5"),
+    " AND ",
+    plugin_role_predicate!("$6"),
+    " ORDER BY updated_at DESC, plugin_key ASC LIMIT $7 OFFSET $8"
 );
 
 /// Admin category page; categories carry no role list, so the page predicate
@@ -129,9 +190,9 @@ const CATEGORY_PAGE_SQL_ADMIN: &str = concat!(
     "WHERE tenant_id IN (0, $1) AND ",
     active_entity_filter!(),
     " AND ",
-    category_keyword_predicate!(),
+    category_keyword_predicate!("$2"),
     " AND ",
-    category_code_predicate!(),
+    category_code_predicate!("$3"),
     " ORDER BY sort_order ASC, category_code ASC LIMIT $4 OFFSET $5"
 );
 
@@ -143,9 +204,9 @@ const CATEGORY_PAGE_SQL_CATALOG: &str = concat!(
     "WHERE tenant_id IN (0, $1) AND ",
     catalog_visible_filter!(),
     " AND ",
-    category_keyword_predicate!(),
+    category_keyword_predicate!("$2"),
     " AND ",
-    category_code_predicate!(),
+    category_code_predicate!("$3"),
     " ORDER BY sort_order ASC, category_code ASC LIMIT $4 OFFSET $5"
 );
 
@@ -246,6 +307,8 @@ fn row_to_plugin(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginRecord> {
     Ok(PluginRecord {
         id: row.try_get::<i64, _>("id").map_err(map_sqlx)?,
         uuid: row.try_get("uuid").map_err(map_sqlx)?,
+        organization_id: row.try_get::<i64, _>("organization_id").map_err(map_sqlx)? as u64,
+        owner_user_id: row.try_get::<i64, _>("owner_user_id").map_err(map_sqlx)? as u64,
         plugin_key: row.try_get("plugin_key").map_err(map_sqlx)?,
         name: row.try_get("name").map_err(map_sqlx)?,
         description: row.try_get("description").map_err(map_sqlx)?,
@@ -530,25 +593,34 @@ pub async fn list_plugins_page(
     Ok((items, total))
 }
 
-/// Catalog-visible plugins: only `active` rows, newest first.
+/// Catalog-visible plugins: only `active` rows inside the caller's visibility
+/// scope, newest first.
 ///
 /// Draft, disabled and archived plugins stay admin-only through
-/// [`ACTIVE_ENTITY_FILTER`] on [`list_plugins`]; the marketplace never offers
-/// a card a visitor cannot install.
+/// [`ACTIVE_ENTITY_FILTER`] on [`list_plugins`], and a plugin is listed only
+/// when its visibility admits the caller: `tenant`/`public` for everyone,
+/// `organization` for its own organization (`0` is the tenant-level sentinel)
+/// and `private` for its owner.
 pub async fn list_catalog_plugins(
     pool: &PgPool,
     tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
 ) -> PluginsResult<Vec<PluginRecord>> {
+    let scope = plugin_scope_predicate!("$2", "$3");
     let query = format!(
         r#"
         SELECT {PLUGIN_SELECT}
         FROM ai_plugin
         WHERE tenant_id = $1 AND {CATALOG_VISIBLE_FILTER}
+          AND {scope}
         ORDER BY updated_at DESC, plugin_key ASC
         "#
     );
     let rows = sqlx::query(sqlx::AssertSqlSafe(query.as_str()))
         .bind(tenant_id as i64)
+        .bind(organization_id as i64)
+        .bind(user_id as i64)
         .fetch_all(pool)
         .await
         .map_err(map_sqlx)?;
@@ -559,6 +631,8 @@ pub async fn list_catalog_plugins(
 pub async fn list_catalog_plugins_page(
     pool: &PgPool,
     tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
     filter: &CatalogViewFilter,
     keyword: Option<&str>,
     limit: i64,
@@ -566,6 +640,8 @@ pub async fn list_catalog_plugins_page(
 ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
     let rows = sqlx::query(PLUGIN_PAGE_SQL_CATALOG)
         .bind(tenant_id as i64)
+        .bind(organization_id as i64)
+        .bind(user_id as i64)
         .bind(keyword_pattern(keyword))
         .bind(filter.category_code())
         .bind(filter.role_codes().to_vec())
@@ -578,6 +654,8 @@ pub async fn list_catalog_plugins_page(
     if items.is_empty() && offset > 0 {
         total = sqlx::query(PLUGIN_PAGE_SQL_CATALOG)
             .bind(tenant_id as i64)
+            .bind(organization_id as i64)
+            .bind(user_id as i64)
             .bind(keyword_pattern(keyword))
             .bind(filter.category_code())
             .bind(filter.role_codes().to_vec())
@@ -617,6 +695,37 @@ pub async fn get_plugin(
         .ok_or_else(|| PluginsServiceError::NotFound(plugin_key.to_string()))
 }
 
+/// Catalog plugin by key: the row must be `active` and inside the caller's
+/// visibility scope, so a hidden plugin is indistinguishable from a missing
+/// one on the marketplace surface.
+pub async fn get_catalog_plugin(
+    pool: &PgPool,
+    tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
+    plugin_key: &str,
+) -> PluginsResult<Option<PluginRecord>> {
+    let scope = plugin_scope_predicate!("$3", "$4");
+    let query = format!(
+        r#"
+        SELECT {PLUGIN_SELECT}
+        FROM ai_plugin
+        WHERE tenant_id = $1 AND plugin_key = $2 AND {CATALOG_VISIBLE_FILTER}
+          AND {scope}
+        LIMIT 1
+        "#
+    );
+    let row = sqlx::query(sqlx::AssertSqlSafe(query.as_str()))
+        .bind(tenant_id as i64)
+        .bind(plugin_key)
+        .bind(organization_id as i64)
+        .bind(user_id as i64)
+        .fetch_optional(pool)
+        .await
+        .map_err(map_sqlx)?;
+    row.as_ref().map(row_to_plugin).transpose()
+}
+
 pub async fn create_plugin(
     pool: &PgPool,
     id_generator: &SnowflakeIdGenerator,
@@ -639,13 +748,13 @@ pub async fn create_plugin(
     let query = format!(
         r#"
         INSERT INTO ai_plugin (
-            id, uuid, tenant_id, plugin_key, name, description, category_id, category_code,
-            version_label, provider, implementation_type, visibility, manifest_json, source_json,
-            install_status, lifecycle_status, tags_json, allowed_role_codes_json, version,
-            created_by, updated_by
+            id, uuid, tenant_id, organization_id, owner_user_id, plugin_key, name, description,
+            category_id, category_code, version_label, provider, implementation_type, visibility,
+            manifest_json, source_json, install_status, lifecycle_status, tags_json,
+            allowed_role_codes_json, version, created_by, updated_by
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20, $21
+            $19, $20, $21, $22, $23
         )
         RETURNING {PLUGIN_SELECT}
         "#
@@ -654,6 +763,8 @@ pub async fn create_plugin(
         .bind(id)
         .bind(uuid)
         .bind(tenant_id as i64)
+        .bind(record.organization_id as i64)
+        .bind(record.owner_user_id as i64)
         .bind(&record.plugin_key)
         .bind(&record.name)
         .bind(&record.description)
@@ -712,8 +823,10 @@ pub async fn update_plugin(
             lifecycle_status = $14,
             tags_json = $15,
             allowed_role_codes_json = $16,
+            organization_id = $17,
+            owner_user_id = $18,
             version = ai_plugin.version + 1,
-            updated_by = $17,
+            updated_by = $19,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1 AND plugin_key = $2 AND deleted_at IS NULL
         RETURNING {PLUGIN_SELECT}
@@ -736,6 +849,8 @@ pub async fn update_plugin(
         .bind(record.lifecycle_status.as_db_code())
         .bind(tags_json)
         .bind(role_codes_json)
+        .bind(record.organization_id as i64)
+        .bind(record.owner_user_id as i64)
         .bind(operator_id as i64)
         .fetch_optional(pool)
         .await
@@ -798,22 +913,49 @@ mod tests {
 
     #[test]
     fn paged_queries_count_and_window_in_one_statement() {
-        for sql in [PLUGIN_PAGE_SQL_ADMIN, PLUGIN_PAGE_SQL_CATALOG] {
-            assert!(sql.contains("COUNT(*) OVER()"));
-            assert!(sql.contains(LIST_TOTAL_SQL_COLUMN));
-            assert!(sql.contains("LIMIT $5 OFFSET $6"));
-            assert!(sql.contains(plugin_keyword_predicate!()));
-            assert!(sql.contains(category_code_predicate!()));
-            assert!(sql.contains(plugin_role_predicate!()));
-        }
+        let admin_plugin_sql = PLUGIN_PAGE_SQL_ADMIN;
+        assert!(admin_plugin_sql.contains("COUNT(*) OVER()"));
+        assert!(admin_plugin_sql.contains(LIST_TOTAL_SQL_COLUMN));
+        assert!(admin_plugin_sql.contains("LIMIT $5 OFFSET $6"));
+        assert!(admin_plugin_sql.contains(plugin_keyword_predicate!("$2")));
+        assert!(admin_plugin_sql.contains(category_code_predicate!("$3")));
+        assert!(admin_plugin_sql.contains(plugin_role_predicate!("$4")));
+
+        let catalog_plugin_sql = PLUGIN_PAGE_SQL_CATALOG;
+        assert!(catalog_plugin_sql.contains("COUNT(*) OVER()"));
+        assert!(catalog_plugin_sql.contains(LIST_TOTAL_SQL_COLUMN));
+        assert!(catalog_plugin_sql.contains("LIMIT $7 OFFSET $8"));
+        assert!(catalog_plugin_sql.contains(plugin_keyword_predicate!("$4")));
+        assert!(catalog_plugin_sql.contains(category_code_predicate!("$5")));
+        assert!(catalog_plugin_sql.contains(plugin_role_predicate!("$6")));
+
         for sql in [CATEGORY_PAGE_SQL_ADMIN, CATEGORY_PAGE_SQL_CATALOG] {
             assert!(sql.contains("COUNT(*) OVER()"));
             assert!(sql.contains(LIST_TOTAL_SQL_COLUMN));
             assert!(sql.contains("LIMIT $4 OFFSET $5"));
-            assert!(sql.contains(category_keyword_predicate!()));
-            assert!(sql.contains(category_code_predicate!()));
+            assert!(sql.contains(category_keyword_predicate!("$2")));
+            assert!(sql.contains(category_code_predicate!("$3")));
             // Categories carry no role list, so no role predicate is applied.
             assert!(!sql.contains("allowed_role_codes_json"));
         }
+    }
+
+    #[test]
+    fn catalog_pages_apply_the_visibility_scope_and_admin_pages_do_not() {
+        let scope = plugin_scope_predicate!("$2", "$3");
+        assert!(
+            PLUGIN_PAGE_SQL_CATALOG.contains(scope),
+            "catalog page must scope every read to the caller"
+        );
+        // Three branches: tenant/public open to every caller, organization
+        // pinned to the caller's organization, private pinned to the owner.
+        assert!(scope.contains("visibility IN ('tenant', 'public')"));
+        assert!(scope.contains("visibility = 'organization' AND organization_id = $2::bigint"));
+        assert!(scope.contains("visibility = 'private' AND owner_user_id = $3::bigint"));
+
+        // The admin inventory stays tenant-wide: no visibility scope at all.
+        assert!(!PLUGIN_PAGE_SQL_ADMIN.contains(scope));
+        assert!(!PLUGIN_PAGE_SQL_ADMIN.contains("visibility IN"));
+        assert!(!PLUGIN_PAGE_SQL_ADMIN.contains("::bigint"));
     }
 }

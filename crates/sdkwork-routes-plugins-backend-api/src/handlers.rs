@@ -34,6 +34,8 @@ pub fn default_plugin_record(
     PluginRecord {
         id: 0,
         uuid: String::new(),
+        organization_id: 0,
+        owner_user_id: 0,
         plugin_key,
         name,
         description: None,
@@ -117,11 +119,12 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
 pub async fn create_plugin<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
     service: &PluginsService<R>,
     tenant_id: u64,
+    organization_id: u64,
     operator_id: u64,
     command: sdkwork_intelligence_plugins_service::CreatePluginCommand,
 ) -> ApiResult<SdkWorkResourceData<PluginRecord>> {
     let created = service
-        .create_plugin(tenant_id, operator_id, command)
+        .create_plugin(tenant_id, organization_id, operator_id, command)
         .await?;
     Ok(item_data(created))
 }

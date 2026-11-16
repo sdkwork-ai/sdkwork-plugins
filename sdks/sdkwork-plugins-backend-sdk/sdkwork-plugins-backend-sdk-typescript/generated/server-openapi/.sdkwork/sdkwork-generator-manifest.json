@@ -128,7 +128,7 @@
     },
     {
       "path": "src/types/plugin-record.ts",
-      "sha256": "3153e48e5d1b732d1333b5b59d5b11589a975529e6ac2bd1889841bfb3207e86"
+      "sha256": "1818e4ca6c51efb400c87c687a4a7f1f0fd6696668dc7c7d7a32d2c4293791d1"
     },
     {
       "path": "src/types/plugins-admin-create-response201.ts",

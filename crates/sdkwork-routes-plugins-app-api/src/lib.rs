@@ -28,13 +28,13 @@ use sdkwork_web_core::{HttpRouteManifest, WebRequestContext};
 use sqlx::PgPool;
 
 pub use handlers::{list_categories, list_plugins, retrieve_plugin};
-pub use sdkwork_intelligence_plugins_service::SharedPluginsService;
 pub use health::DbReadinessCheck;
 pub use http_route_manifest::app_route_manifest;
 pub use http_support::{resolve_tenant_id, TENANT_HEADER};
 pub use list_query::SdkWorkListQuery;
 pub use ports::PluginsAppRequestContext;
 pub use response::{finish_api_json, ok_json, ApiProblem, ApiResult};
+pub use sdkwork_intelligence_plugins_service::SharedPluginsService;
 pub use web_bootstrap::{
     plugins_public_path_prefixes, wrap_router_with_web_framework,
     wrap_router_with_web_framework_from_env, PluginsAppContextInjector,
@@ -105,6 +105,20 @@ fn resolve_request_tenant_id(
     http_support::resolve_tenant_id_from_context(ctx, default_tenant_id)
 }
 
+/// Caller identities the marketplace visibility scope keys on: the organization
+/// scope (`0` is the tenant-level sentinel) and the actor user id. Both fall
+/// back to `0` when the verified context carries no organization or principal.
+fn resolve_request_scope(context: Option<&Extension<PluginsAppRequestContext>>) -> (u64, u64) {
+    let app_context = context.map(|extension| &extension.0);
+    let organization_id = app_context
+        .and_then(|app_context| app_context.organization_id)
+        .unwrap_or(0);
+    let user_id = app_context
+        .and_then(|app_context| app_context.actor_id)
+        .unwrap_or(0);
+    (organization_id, user_id)
+}
+
 async fn list_plugins_handler<R>(
     ctx: WebRequestContext,
     State(state): State<AppState<R>>,
@@ -115,10 +129,25 @@ async fn list_plugins_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        ok_json(handlers::list_plugins(state.service.as_ref(), tenant_id, &query).await?)
-    }.await)
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let (organization_id, user_id) = resolve_request_scope(context.as_ref());
+            ok_json(
+                handlers::list_plugins(
+                    state.service.as_ref(),
+                    tenant_id,
+                    organization_id,
+                    user_id,
+                    &query,
+                )
+                .await?,
+            )
+        }
+        .await,
+    )
 }
 
 async fn retrieve_plugin_handler<R>(
@@ -131,13 +160,25 @@ async fn retrieve_plugin_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        ok_json(
-            handlers::retrieve_plugin(state.service.as_ref(), tenant_id, plugin_key.as_str())
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let (organization_id, user_id) = resolve_request_scope(context.as_ref());
+            ok_json(
+                handlers::retrieve_plugin(
+                    state.service.as_ref(),
+                    tenant_id,
+                    organization_id,
+                    user_id,
+                    plugin_key.as_str(),
+                )
                 .await?,
-        )
-    }.await)
+            )
+        }
+        .await,
+    )
 }
 
 async fn list_categories_handler<R>(
@@ -150,10 +191,15 @@ async fn list_categories_handler<R>(
 where
     R: PluginsRepository + Send + Sync,
 {
-    response::finish_api_json(&ctx, async {
-        let tenant_id = resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
-        ok_json(handlers::list_categories(state.service.as_ref(), tenant_id, &query).await?)
-    }.await)
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            ok_json(handlers::list_categories(state.service.as_ref(), tenant_id, &query).await?)
+        }
+        .await,
+    )
 }
 
 /// Default tenant for the marketplace surface when no verified context
@@ -178,7 +224,10 @@ where
     })
 }
 
-pub fn build_router_with_tenant<R>(service: Arc<PluginsService<R>>, default_tenant_id: u64) -> Router
+pub fn build_router_with_tenant<R>(
+    service: Arc<PluginsService<R>>,
+    default_tenant_id: u64,
+) -> Router
 where
     R: PluginsRepository + Clone + Send + Sync + 'static,
 {

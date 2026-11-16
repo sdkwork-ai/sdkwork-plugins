@@ -4,13 +4,27 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginLifecycleStatus, PluginRecord};
+use sdkwork_plugins_contract::{
+    PluginCategoryRecord, PluginLifecycleStatus, PluginRecord, PluginVisibility,
+};
 use sdkwork_utils_rust::{uuid, CatalogViewFilter};
 
 use crate::{PluginsRepository, PluginsResult, PluginsServiceError};
 
 fn map_poison<T>(_: T) -> PluginsServiceError {
     PluginsServiceError::Repository("in-memory plugins registry lock poisoned".to_string())
+}
+
+/// Whether a catalog reader may see the record. Mirrors the SQL
+/// `plugin_scope_predicate`: `tenant`/`public` rows are open to every caller of
+/// the tenant, `organization` rows only to their own organization (`0` is the
+/// tenant-level sentinel) and `private` rows only to their owner.
+fn plugin_in_scope(record: &PluginRecord, organization_id: u64, user_id: u64) -> bool {
+    match record.visibility {
+        PluginVisibility::Tenant | PluginVisibility::Public => true,
+        PluginVisibility::Organization => record.organization_id == organization_id,
+        PluginVisibility::Private => record.owner_user_id == user_id,
+    }
 }
 
 fn contains_keyword(value: &str, keyword: &str) -> bool {
@@ -223,9 +237,17 @@ impl PluginsRepository for InMemoryPluginRepository {
         Ok(records)
     }
 
-    async fn list_catalog_plugins(&self, tenant_id: u64) -> PluginsResult<Vec<PluginRecord>> {
+    async fn list_catalog_plugins(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+    ) -> PluginsResult<Vec<PluginRecord>> {
         let mut records = self.list_plugins(tenant_id).await?;
-        records.retain(|record| record.lifecycle_status == PluginLifecycleStatus::Active);
+        records.retain(|record| {
+            record.lifecycle_status == PluginLifecycleStatus::Active
+                && plugin_in_scope(record, organization_id, user_id)
+        });
         Ok(records)
     }
 
@@ -248,17 +270,39 @@ impl PluginsRepository for InMemoryPluginRepository {
     async fn list_catalog_plugins_page(
         &self,
         tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
         filter: &CatalogViewFilter,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
     ) -> PluginsResult<(Vec<PluginRecord>, i64)> {
-        let records = self.list_catalog_plugins(tenant_id).await?;
+        let records = self
+            .list_catalog_plugins(tenant_id, organization_id, user_id)
+            .await?;
         let filtered = records
             .into_iter()
             .filter(|record| plugin_in_view(record, filter, keyword))
             .collect();
         Ok(slice_page(filtered, limit, offset))
+    }
+
+    async fn get_catalog_plugin(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginRecord>> {
+        let state = self.state.lock().map_err(map_poison)?;
+        Ok(state
+            .plugins
+            .get(&(tenant_id, plugin_key.to_string()))
+            .filter(|record| {
+                record.lifecycle_status == PluginLifecycleStatus::Active
+                    && plugin_in_scope(record, organization_id, user_id)
+            })
+            .cloned())
     }
 
     async fn get_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {

@@ -4,6 +4,10 @@ export interface PluginRecord {
   /** Snowflake entity id serialized as a decimal string (API_SPEC §13.6). */
   id: string;
   uuid: string;
+  /** Organization scope of the record. `0` is the tenant-level sentinel (API_SPEC §13.6). */
+  organizationId: string;
+  /** Owner of a `private` plugin; catalog reads scope `private` rows to this user id (API_SPEC §13.6). */
+  ownerUserId: string;
   pluginKey: string;
   name: string;
   description?: string | null;

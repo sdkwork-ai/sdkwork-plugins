@@ -281,12 +281,19 @@ pub fn category_record_from_command(
 
 pub fn plugin_record_from_create(
     _tenant_id: u64,
+    organization_id: u64,
     operator_id: u64,
     command: &CreatePluginCommand,
 ) -> PluginsResult<PluginRecord> {
     let record = PluginRecord {
         id: 0,
         uuid: String::new(),
+        // The catalog scopes `organization`/`private` rows by these two columns,
+        // so a created plugin must carry the caller's organization and owner
+        // instead of the 0/0 sentinel (which would hide it from every caller
+        // except the tenant-level scope).
+        organization_id,
+        owner_user_id: operator_id,
         plugin_key: trim(command.plugin_key.as_str()),
         name: trim(command.name.as_str()),
         description: command.description.clone(),
@@ -325,7 +332,6 @@ pub fn plugin_record_from_create(
         updated_at: String::new(),
     };
     validate_plugin_record(&record)?;
-    let _ = operator_id;
     Ok(record)
 }
 

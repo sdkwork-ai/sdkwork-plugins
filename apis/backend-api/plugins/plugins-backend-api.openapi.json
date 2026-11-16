@@ -1022,6 +1022,8 @@
         "required": [
           "id",
           "uuid",
+          "organizationId",
+          "ownerUserId",
           "pluginKey",
           "name",
           "versionLabel",
@@ -1046,6 +1048,20 @@
           },
           "uuid": {
             "type": "string"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Organization scope of the record. `0` is the tenant-level sentinel (API_SPEC §13.6)."
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Owner of a `private` plugin; catalog reads scope `private` rows to this user id (API_SPEC §13.6)."
           },
           "pluginKey": {
             "type": "string"

@@ -201,9 +201,24 @@ where
                 .as_ref()
                 .and_then(|value| value.0.operator_id)
                 .unwrap_or(0);
+            // The catalog scopes `organization`/`private` rows by the creator's
+            // organization, so a created plugin must carry the operator's
+            // organization scope instead of the tenant-level sentinel.
+            let organization_id = ctx
+                .principal
+                .as_ref()
+                .map(|principal| principal.organization_scope())
+                .and_then(|scope| scope.parse().ok())
+                .unwrap_or(0);
             ok_json(
-                handlers::create_plugin(state.service.as_ref(), tenant_id, operator_id, body)
-                    .await?,
+                handlers::create_plugin(
+                    state.service.as_ref(),
+                    tenant_id,
+                    organization_id,
+                    operator_id,
+                    body,
+                )
+                .await?,
             )
         }
         .await,
