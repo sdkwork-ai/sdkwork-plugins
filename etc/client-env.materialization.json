@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.client-env-materialization",
+  "application": "sdkwork-plugins",
+  "command": "node ../sdkwork-specs/tools/materialize-client-env.mjs --root .",
+  "deploymentConfig": "sdkwork.deployment.config.json",
+  "sourceIdentity": {
+    "deploymentProfileKeys": [
+      "SDKWORK_PLUGINS_DEPLOYMENT_PROFILE"
+    ],
+    "environmentKeys": [
+      "SDKWORK_PLUGINS_ENVIRONMENT"
+    ],
+    "profileIdKeys": [
+      "SDKWORK_PLUGINS_PROFILE_ID"
+    ]
+  },
+  "surfaces": [
+    {
+      "id": "sdkwork-plugins-pc",
+      "root": "apps/sdkwork-plugins-pc",
+      "format": "vite",
+      "runtimeTarget": "browser",
+      "identityPrefixes": [
+        "VITE_SDKWORK_PLUGINS"
+      ],
+      "bindings": {},
+      "requiredOutputKeys": [
+        "VITE_SDKWORK_ENVIRONMENT",
+        "VITE_SDKWORK_DEPLOYMENT_PROFILE",
+        "VITE_SDKWORK_PROFILE_ID",
+        "VITE_SDKWORK_RUNTIME_TARGET"
+      ],
+      "accessToken": {
+        "appIdEnv": "SDKWORK_DEPLOY_APPLICATION_ID",
+        "tenantId": "100001",
+        "organizationId": "0",
+        "permissionScope": [
+          "iam:self"
+        ]
+      }
+    }
+  ]
+}

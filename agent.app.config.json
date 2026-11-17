@@ -10,7 +10,10 @@
   },
   "backend": {
     "profileKey": "backend-root-admin",
-    "tenantId": 100001
+    "tenantId": 100001,
+    "accessTokenPermissionScope": [
+      "iam:self"
+    ]
   },
   "runtime": {
     "family": "web",
