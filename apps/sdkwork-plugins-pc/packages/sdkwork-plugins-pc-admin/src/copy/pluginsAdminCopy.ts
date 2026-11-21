@@ -83,8 +83,12 @@ const en = {
     title: 'Plugin Management',
     description: 'Managed plugins served through the backend administration API.',
     newPlugin: 'New plugin',
+    refresh: 'Refresh',
     loading: 'Loading plugins…',
     empty: 'No managed plugins yet',
+    emptyFiltered: 'No plugins match the current filters',
+    clearFilters: 'Clear filters',
+    total: (count: number) => `${count} ${count === 1 ? 'plugin' : 'plugins'}`,
     filterLabel: 'Filter by keyword',
     filterPlaceholder: 'name, key, tag, provider',
     filters: {
@@ -159,6 +163,7 @@ const en = {
     newCategory: 'New category',
     loading: 'Loading categories…',
     empty: 'No plugin categories yet',
+    total: (count: number) => `${count} ${count === 1 ? 'category' : 'categories'}`,
     table: {
       category: 'Category',
       code: 'Code',
@@ -298,8 +303,12 @@ const zh: PluginsAdminCopy = {
     title: '插件管理',
     description: '通过后端管理接口提供受管插件。',
     newPlugin: '新建插件',
+    refresh: '刷新',
     loading: '正在加载插件…',
     empty: '暂无受管插件',
+    emptyFiltered: '没有符合当前筛选条件的插件',
+    clearFilters: '清除筛选',
+    total: (count) => `共 ${count} 个插件`,
     filterLabel: '按关键词筛选',
     filterPlaceholder: '名称、标识、标签、提供方',
     filters: {
@@ -373,6 +382,7 @@ const zh: PluginsAdminCopy = {
     newCategory: '新建分类',
     loading: '正在加载分类…',
     empty: '暂无插件分类',
+    total: (count) => `共 ${count} 个分类`,
     table: {
       category: '分类',
       code: '编码',

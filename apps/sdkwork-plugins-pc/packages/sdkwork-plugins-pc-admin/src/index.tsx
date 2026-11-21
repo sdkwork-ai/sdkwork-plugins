@@ -17,7 +17,7 @@ import {
   upsertPluginCategory,
   type PluginsAdminListParams,
 } from './pluginsAdminService.ts';
-import { usePluginsAdminCopy, type PluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
+import { usePluginsAdminCopy, usePluginsAdminLocale, type PluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
 import { ArtifactSourceField } from './components/ArtifactSourceField.tsx';
 import { CategorySelect } from './components/CategorySelect.tsx';
 import { RoleMultiSelect } from './components/RoleMultiSelect.tsx';
@@ -103,13 +103,94 @@ function parseManifest(
   }
 }
 
-const INPUT_CLASS =
-  'w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60';
-const LABEL_TEXT_CLASS = 'text-xs font-medium text-zinc-400';
-const SECONDARY_BUTTON_CLASS =
-  'rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700/60 disabled:opacity-60';
-const PRIMARY_BUTTON_CLASS =
-  'rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60';
+/**
+ * Presentational hooks owned by the host admin shell.
+ *
+ * The list surface, the control geometry (`--admin-control-height`) and the
+ * query toolbar are defined once by the composing application, so inputs,
+ * selects, segmented switches and buttons in every admin list page share one
+ * height and one card surface without this block re-declaring colors.
+ */
+const INPUT_CLASS = 'admin-control';
+const LABEL_TEXT_CLASS = 'admin-field__label';
+const SECONDARY_BUTTON_CLASS = 'admin-button admin-button--secondary';
+const PRIMARY_BUTTON_CLASS = 'admin-button admin-button--primary';
+const DANGER_BUTTON_CLASS = 'admin-button admin-button--danger';
+
+type BadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
+  return <span className={`admin-badge admin-badge--${tone}`}>{children}</span>;
+}
+
+/**
+ * Lifecycle, visibility and install state read as tones instead of raw text.
+ *
+ * `active` and `installed` are the healthy states; `draft`/`public` are
+ * informational; `disabled`/`archived` are attention states. Unknown values
+ * fall back to the neutral tone rather than inventing a color.
+ */
+function statusTone(status: string): BadgeTone {
+  switch (status) {
+    case 'active':
+      return 'success';
+    case 'draft':
+      return 'info';
+    case 'disabled':
+      return 'warning';
+    default:
+      return 'neutral';
+  }
+}
+
+function visibilityTone(visibility: string): BadgeTone {
+  return visibility === 'public' ? 'info' : 'neutral';
+}
+
+function installTone(installStatus: string): BadgeTone {
+  switch (installStatus) {
+    case 'installed':
+      return 'success';
+    case 'disabled':
+      return 'warning';
+    default:
+      return 'neutral';
+  }
+}
+
+/**
+ * Category cell label: the registry name when the code resolves, the raw code
+ * otherwise, and the "uncategorized" copy when the record carries no category.
+ */
+function categoryLabel(
+  categories: readonly PluginCategoryRecord[],
+  code: string | null | undefined,
+  fallback: string,
+): string {
+  if (!code) {
+    return fallback;
+  }
+  return categories.find((category) => category.categoryCode === code)?.name ?? code;
+}
+
+/**
+ * Wire timestamps are ISO-8601 strings; show them in the operator's locale
+ * instead of the raw value, and keep the raw value in the `title` attribute so
+ * the exact instant is still available on hover.
+ */
+function formatTimestamp(value: string, locale: 'en' | 'zh'): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
+}
 
 function Field({
   label,
@@ -119,7 +200,7 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="grid gap-1.5 text-sm">
+    <label className="admin-field">
       <span className={LABEL_TEXT_CLASS}>{label}</span>
       {children}
     </label>
@@ -185,6 +266,7 @@ function activeCategoryOptions(
 
 export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   const copy = usePluginsAdminCopy();
+  const locale = usePluginsAdminLocale();
   const [records, setRecords] = useState<PluginRecord[]>([]);
   const [categories, setCategories] = useState<PluginCategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,8 +276,21 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   const [editTarget, setEditTarget] = useState<PluginRecord | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [keyword, setKeyword] = useState('');
+  /**
+   * The keyword that actually reaches the list endpoint.
+   *
+   * Typing must not fire one request per keystroke: the list runs straight
+   * against the backend and re-renders the whole table, so the field is
+   * debounced by 250 ms before it becomes part of the request parameters.
+   */
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
   const [roleScope, setRoleScope] = useState<RoleScope>('all');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedKeyword(keyword), 250);
+    return () => window.clearTimeout(timer);
+  }, [keyword]);
 
   const roleScopeCodes = useMemo(
     () => (roleScope === 'mine' ? roleCodes.map((code) => code.trim()).filter(Boolean) : []),
@@ -207,8 +302,8 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
     // maximum page the backend serves (`MAX_LIST_PAGE_SIZE`); without it the
     // default window would silently hide everything past the first 20 rows.
     const params: NonNullable<PluginsAdminListParams> = { pageSize: 200 };
-    if (keyword.trim().length > 0) {
-      params.q = keyword;
+    if (appliedKeyword.trim().length > 0) {
+      params.q = appliedKeyword;
     }
     if (categoryCode.length > 0) {
       params.categoryCode = categoryCode;
@@ -217,10 +312,21 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
       params.roleCodes = [...roleScopeCodes].sort().join(',');
     }
     return params;
-  }, [keyword, categoryCode, roleScopeCodes]);
+  }, [appliedKeyword, categoryCode, roleScopeCodes]);
 
   const reload = useCallback(() => {
     setReloadToken((token) => token + 1);
+  }, []);
+
+  /** True when a query control narrows the list, so the empty state can say so. */
+  const filtersActive =
+    appliedKeyword.trim().length > 0 || categoryCode.length > 0 || roleScope === 'mine';
+
+  const clearFilters = useCallback(() => {
+    setKeyword('');
+    setAppliedKeyword('');
+    setCategoryCode('');
+    setRoleScope('all');
   }, []);
 
   useEffect(() => {
@@ -284,75 +390,168 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
 
   return (
     <section className="embedded-fill-page">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      <header className="admin-page-header">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">{copy.plugins.title}</h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400">
-            {copy.plugins.description}
-          </p>
+          <h1 className="admin-page-header__title">{copy.plugins.title}</h1>
+          <p className="admin-page-header__description">{copy.plugins.description}</p>
         </div>
-        <button
-          type="button"
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
-          onClick={() => setCreateOpen(true)}
-        >
-          {copy.plugins.newPlugin}
-        </button>
+        <div className="admin-page-header__actions">
+          <button
+            type="button"
+            className={PRIMARY_BUTTON_CLASS}
+            onClick={() => setCreateOpen(true)}
+          >
+            {copy.plugins.newPlugin}
+          </button>
+        </div>
       </header>
 
       {error ? (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+        <div role="alert" className="admin-alert admin-alert--error">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+        <div role="status" className="admin-alert admin-alert--success">
           {notice}
         </div>
       ) : null}
 
       <div className="data-surface">
+        <div className="admin-list-toolbar">
+          <div className="admin-list-toolbar__filters">
+            <label className="admin-field admin-field--search">
+              <span className={LABEL_TEXT_CLASS}>{copy.plugins.filterLabel}</span>
+              <input
+                className={INPUT_CLASS}
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder={copy.plugins.filterPlaceholder}
+              />
+            </label>
+            <label className="admin-field admin-field--compact">
+              <span className={LABEL_TEXT_CLASS}>{copy.plugins.filters.categoryLabel}</span>
+              <select
+                className={INPUT_CLASS}
+                value={categoryCode}
+                onChange={(event) => setCategoryCode(event.target.value)}
+              >
+                <option value="">{copy.plugins.filters.allCategories}</option>
+                {activeCategoryOptions(categories, categoryCode).map((category) => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="admin-field">
+              <span className={LABEL_TEXT_CLASS}>{copy.plugins.filters.roleScopeLabel}</span>
+              <div
+                className="admin-segmented"
+                role="group"
+                aria-label={copy.plugins.filters.roleScopeLabel}
+              >
+                {(['all', 'mine'] as const).map((scope) => {
+                  const disabled = scope === 'mine' && roleScopeCodesAvailable(roleCodes) === false;
+                  return (
+                    <button
+                      key={scope}
+                      type="button"
+                      className="admin-segmented__item"
+                      aria-pressed={roleScope === scope}
+                      disabled={disabled}
+                      title={disabled ? copy.plugins.filters.roleScopeUnavailable : undefined}
+                      onClick={() => setRoleScope(scope)}
+                    >
+                      {scope === 'all'
+                        ? copy.plugins.filters.roleScopeAll
+                        : copy.plugins.filters.roleScopeMine}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <div className="admin-list-toolbar__actions">
+            <button
+              type="button"
+              className={SECONDARY_BUTTON_CLASS}
+              onClick={reload}
+              disabled={loading}
+            >
+              {copy.plugins.refresh}
+            </button>
+          </div>
+        </div>
+
         <div className="table-frame">
-          {loading ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.plugins.loading}</p>
-          ) : records.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.plugins.empty}</p>
+          {records.length === 0 ? (
+            <div className="admin-list-state">
+              <span>
+                {loading
+                  ? copy.plugins.loading
+                  : filtersActive
+                    ? copy.plugins.emptyFiltered
+                    : copy.plugins.empty}
+              </span>
+              {!loading && filtersActive ? (
+                <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={clearFilters}>
+                  {copy.plugins.clearFilters}
+                </button>
+              ) : null}
+            </div>
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+            <table className="admin-list-table">
+              <thead>
                 <tr>
-                  <th className="px-3 py-2">{copy.plugins.table.plugin}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.category}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.implementation}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.visibility}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.status}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.install}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.version}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.updated}</th>
-                  <th className="px-3 py-2">{copy.plugins.table.actions}</th>
+                  <th>{copy.plugins.table.plugin}</th>
+                  <th>{copy.plugins.table.category}</th>
+                  <th>{copy.plugins.table.implementation}</th>
+                  <th>{copy.plugins.table.visibility}</th>
+                  <th>{copy.plugins.table.status}</th>
+                  <th>{copy.plugins.table.install}</th>
+                  <th>{copy.plugins.table.version}</th>
+                  <th>{copy.plugins.table.updated}</th>
+                  <th className="text-right">{copy.plugins.table.actions}</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((record) => (
-                  <tr key={record.id} className="border-t border-slate-200 dark:border-zinc-800">
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-slate-900 dark:text-zinc-100">{record.name}</div>
-                      <div className="text-xs text-slate-500 dark:text-zinc-400">{record.pluginKey}</div>
+                  <tr key={record.id}>
+                    <td>
+                      <span className="admin-list-table__primary">{record.name}</span>
+                      <span className="admin-list-table__secondary font-mono">{record.pluginKey}</span>
                     </td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">
-                      {record.categoryCode ?? '—'}
+                    <td>
+                      {categoryLabel(categories, record.categoryCode, copy.pluginForm.uncategorized)}
                     </td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.implementationType}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.visibility[record.visibility]}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.status[record.status]}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.installStatus[record.installStatus]}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.versionLabel}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-zinc-400">{record.updatedAt}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
+                    <td>
+                      <code className="font-mono text-xs">{record.implementationType}</code>
+                    </td>
+                    <td>
+                      <Badge tone={visibilityTone(record.visibility)}>
+                        {copy.labels.visibility[record.visibility]}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge tone={statusTone(record.status)}>
+                        {copy.labels.status[record.status]}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge tone={installTone(record.installStatus)}>
+                        {copy.labels.installStatus[record.installStatus]}
+                      </Badge>
+                    </td>
+                    <td className="text-xs">{record.versionLabel}</td>
+                    <td className="text-xs" title={record.updatedAt}>
+                      {formatTimestamp(record.updatedAt, locale)}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <button
                           type="button"
-                          className="rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                          className={SECONDARY_BUTTON_CLASS}
                           onClick={() => setEditTarget(record)}
                         >
                           {copy.plugins.actions.edit}
@@ -361,7 +560,7 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
                           <button
                             key={transition.label}
                             type="button"
-                            className="rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                            className={SECONDARY_BUTTON_CLASS}
                             onClick={() =>
                               void runAction(
                                 () =>
@@ -380,7 +579,7 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
                         ))}
                         <button
                           type="button"
-                          className="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
+                          className={DANGER_BUTTON_CLASS}
                           onClick={() => handleDelete(record)}
                         >
                           {copy.plugins.actions.delete}
@@ -393,66 +592,8 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
             </table>
           )}
         </div>
-        <label className="mt-3 grid max-w-xs gap-1 text-sm">
-          <span className="text-slate-600 dark:text-zinc-300">{copy.plugins.filterLabel}</span>
-          <input
-            className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder={copy.plugins.filterPlaceholder}
-          />
-        </label>
-        <div className="mt-3 flex flex-wrap items-end gap-4 text-sm">
-          <label className="grid gap-1">
-            <span className="text-slate-600 dark:text-zinc-300">
-              {copy.plugins.filters.categoryLabel}
-            </span>
-            <select
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
-              value={categoryCode}
-              onChange={(event) => setCategoryCode(event.target.value)}
-            >
-              <option value="">{copy.plugins.filters.allCategories}</option>
-              {activeCategoryOptions(categories, categoryCode).map((category) => (
-                <option key={category.value} value={category.value}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid gap-1">
-            <span className="text-slate-600 dark:text-zinc-300">
-              {copy.plugins.filters.roleScopeLabel}
-            </span>
-            <div
-              className="inline-flex overflow-hidden rounded border border-slate-300 dark:border-zinc-700"
-              role="group"
-              aria-label={copy.plugins.filters.roleScopeLabel}
-            >
-              {(['all', 'mine'] as const).map((scope) => {
-                const disabled = scope === 'mine' && roleScopeCodesAvailable(roleCodes) === false;
-                return (
-                  <button
-                    key={scope}
-                    type="button"
-                    className={
-                      roleScope === scope
-                        ? 'bg-blue-600 px-3 py-1 text-xs font-medium text-white'
-                        : 'px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
-                    }
-                    aria-pressed={roleScope === scope}
-                    disabled={disabled}
-                    title={disabled ? copy.plugins.filters.roleScopeUnavailable : undefined}
-                    onClick={() => setRoleScope(scope)}
-                  >
-                    {scope === 'all'
-                      ? copy.plugins.filters.roleScopeAll
-                      : copy.plugins.filters.roleScopeMine}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        <div className="admin-list-footer">
+          <span>{copy.plugins.total(records.length)}</span>
         </div>
       </div>
 
@@ -777,6 +918,7 @@ function PluginEditorDrawer(props: PluginEditorDrawerProps) {
  */
 export function PluginCategoriesPage() {
   const copy = usePluginsAdminCopy();
+  const locale = usePluginsAdminLocale();
   const [records, setRecords] = useState<PluginCategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -828,68 +970,79 @@ export function PluginCategoriesPage() {
 
   return (
     <section className="embedded-fill-page">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      <header className="admin-page-header">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-zinc-100">{copy.categories.title}</h1>
-          <p className="text-sm text-slate-500 dark:text-zinc-400">
-            {copy.categories.description}
-          </p>
+          <h1 className="admin-page-header__title">{copy.categories.title}</h1>
+          <p className="admin-page-header__description">{copy.categories.description}</p>
         </div>
-        <button
-          type="button"
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500"
-          onClick={() => setUpsertOpen(true)}
-        >
-          {copy.categories.newCategory}
-        </button>
+        <div className="admin-page-header__actions">
+          <button
+            type="button"
+            className={PRIMARY_BUTTON_CLASS}
+            onClick={() => setUpsertOpen(true)}
+          >
+            {copy.categories.newCategory}
+          </button>
+        </div>
       </header>
 
       {error ? (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+        <div role="alert" className="admin-alert admin-alert--error">
           {error}
         </div>
       ) : null}
       {notice ? (
-        <div className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+        <div role="status" className="admin-alert admin-alert--success">
           {notice}
         </div>
       ) : null}
 
       <div className="data-surface">
         <div className="table-frame">
-          {loading ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.categories.loading}</p>
-          ) : records.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-zinc-400">{copy.categories.empty}</p>
+          {records.length === 0 ? (
+            <p className="admin-list-state">
+              {loading ? copy.categories.loading : copy.categories.empty}
+            </p>
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+            <table className="admin-list-table">
+              <thead>
                 <tr>
-                  <th className="px-3 py-2">{copy.categories.table.category}</th>
-                  <th className="px-3 py-2">{copy.categories.table.code}</th>
-                  <th className="px-3 py-2">{copy.categories.table.sortOrder}</th>
-                  <th className="px-3 py-2">{copy.categories.table.status}</th>
-                  <th className="px-3 py-2">{copy.categories.table.updated}</th>
+                  <th>{copy.categories.table.category}</th>
+                  <th>{copy.categories.table.code}</th>
+                  <th>{copy.categories.table.sortOrder}</th>
+                  <th>{copy.categories.table.status}</th>
+                  <th>{copy.categories.table.updated}</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((record) => (
-                  <tr key={record.id} className="border-t border-slate-200 dark:border-zinc-800">
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-slate-900 dark:text-zinc-100">{record.name}</div>
-                      <div className="text-xs text-slate-500 dark:text-zinc-400">
-                        {record.description ?? ''}
-                      </div>
+                  <tr key={record.id}>
+                    <td>
+                      <span className="admin-list-table__primary">{record.name}</span>
+                      {record.description ? (
+                        <span className="admin-list-table__secondary">{record.description}</span>
+                      ) : null}
                     </td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.categoryCode}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{record.sortOrder}</td>
-                    <td className="px-3 py-2 text-slate-700 dark:text-zinc-300">{copy.labels.status[record.lifecycleStatus]}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-zinc-400">{record.updatedAt}</td>
+                    <td>
+                      <code className="font-mono text-xs">{record.categoryCode}</code>
+                    </td>
+                    <td>{record.sortOrder}</td>
+                    <td>
+                      <Badge tone={statusTone(record.lifecycleStatus)}>
+                        {copy.labels.status[record.lifecycleStatus]}
+                      </Badge>
+                    </td>
+                    <td className="text-xs" title={record.updatedAt}>
+                      {formatTimestamp(record.updatedAt, locale)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </div>
+        <div className="admin-list-footer">
+          <span>{copy.categories.total(records.length)}</span>
         </div>
       </div>
 
@@ -956,38 +1109,38 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
       >
         <h2 className="mb-4 text-base font-semibold text-slate-900 dark:text-zinc-100">{copy.categoryForm.title}</h2>
         <div className="grid gap-3">
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.categoryCode}</span>
+          <label className="admin-field">
+            <span className={LABEL_TEXT_CLASS}>{copy.categoryForm.fields.categoryCode}</span>
             <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              className={INPUT_CLASS}
               value={categoryCode}
               onChange={(event) => setCategoryCode(event.target.value)}
               placeholder={copy.categoryForm.placeholders.categoryCode}
               required
             />
           </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.name}</span>
+          <label className="admin-field">
+            <span className={LABEL_TEXT_CLASS}>{copy.categoryForm.fields.name}</span>
             <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              className={INPUT_CLASS}
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
           </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.description}</span>
+          <label className="admin-field">
+            <span className={LABEL_TEXT_CLASS}>{copy.categoryForm.fields.description}</span>
             <textarea
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              className={INPUT_CLASS}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={2}
             />
           </label>
-          <label className="grid gap-1 text-sm">
-            <span className="text-slate-600 dark:text-zinc-300">{copy.categoryForm.fields.sortOrder}</span>
+          <label className="admin-field">
+            <span className={LABEL_TEXT_CLASS}>{copy.categoryForm.fields.sortOrder}</span>
             <input
-              className="rounded border border-slate-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+              className={INPUT_CLASS}
               value={sortOrder}
               onChange={(event) => setSortOrder(event.target.value)}
               inputMode="numeric"
@@ -998,18 +1151,10 @@ function UpsertCategoryModal({ onClose, onUpsert }: UpsertCategoryModalProps) {
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">{formError}</p>
         ) : null}
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-zinc-700"
-            onClick={onClose}
-          >
+          <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={onClose}>
             {copy.categoryForm.cancel}
           </button>
-          <button
-            type="submit"
-            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
-            disabled={submitting}
-          >
+          <button type="submit" className={PRIMARY_BUTTON_CLASS} disabled={submitting}>
             {copy.categoryForm.save}
           </button>
         </div>
