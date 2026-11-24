@@ -39,7 +39,7 @@ function payloadOf(sql) {
 }
 
 function optionalString(value) {
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+  return typeof value === 'string' && value.trim() !== '' ? value.trim().replaceAll('\u0000', '') : null;
 }
 
 function list(value) {
@@ -59,7 +59,7 @@ function same(left, right) {
  * @param localeSeeds the display SQL of each active locale.
  * @returns the measured counts.
  */
-export function verifyCatalog(registry, seed, localeSeeds) {
+export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) {
   if (!Array.isArray(registry.plugins)) fail('registry has no plugins array');
   if (seed.length !== registry.plugins.length) {
     fail(`seed holds ${seed.length} entries, registry publishes ${registry.plugins.length}`);
@@ -126,8 +126,7 @@ export function verifyCatalog(registry, seed, localeSeeds) {
   for (const entry of registry.plugins) {
     const url = optionalString(entry.url);
     const item = byUrl.get(url);
-    if (item === undefined) fail(`registry entry ${url} is missing from the seed`);
-    const description = entry.description && typeof entry.description === 'object' ? entry.description : {};
+    if (item === undefined) fail(`registry entry ${url} is missing from the seed`);    const description = entry.description && typeof entry.description === 'object' ? entry.description : {};
     const expected = {
       ownerLogin: optionalString(entry.owner),
       catalogPageUrl: optionalString(entry.page),
@@ -159,6 +158,22 @@ export function verifyCatalog(registry, seed, localeSeeds) {
     if (optionalString(entry.install) !== null && item.marketplaceMetadata?.install !== optionalString(entry.install)) {
       fail(`${url}: display install text lost`);
     }
+    if (updates !== undefined) {
+      const changelog = updates.updates?.[item.repositoryUrl] ?? updates.updates?.[url];
+      const release = changelog?.release;
+      const seededRelease = item.marketplaceMetadata?.release ?? null;
+      // The seed drops U+0000 because PostgreSQL text and jsonb reject it.
+      const sanitized = value => (typeof value === 'string' ? value.replaceAll('\u0000', '') : value);
+      const tag = sanitized(optionalString(release?.tag));
+      if (tag !== (seededRelease?.tag ?? null)) fail(`${url}: release tag ${JSON.stringify(tag)} lost`);
+      if (sanitized(optionalString(release?.url)) !== (seededRelease?.url ?? null)) fail(`${url}: release URL lost`);
+      if (sanitized(optionalString(release?.body)) !== (seededRelease?.body ?? null)) fail(`${url}: release notes lost`);
+      const commits = Array.isArray(changelog?.commits) ? changelog.commits.slice(0, 10).length : 0;
+      if ((item.marketplaceMetadata?.recentCommits?.length ?? 0) !== commits) fail(`${url}: recent commits lost`);
+      if (sanitized(optionalString(changelog?.checkedAt)) !== (item.marketplaceMetadata?.updatesCheckedAt ?? null)) {
+        fail(`${url}: changelog check date lost`);
+      }
+    }
   }
 
   const categories = [...new Set(seed.flatMap(item => item.tags))].sort();
@@ -174,6 +189,8 @@ export function verifyCatalog(registry, seed, localeSeeds) {
     defaultTargets,
     media,
     capabilities,
+    changelogEntries: seed.filter(item => (item.marketplaceMetadata?.release?.tag ?? null) !== null
+      || (item.marketplaceMetadata?.recentCommits?.length ?? 0) > 0).length,
     locales: Object.keys(localeSeeds),
   };
 }
@@ -183,6 +200,11 @@ async function readRegistry(input) {
   const response = await fetch(DEFAULT_CATALOG_URL);
   if (!response.ok) throw new Error(`catalog request failed: ${response.status}`);
   return response.json();
+}
+
+async function readUpdates(input) {
+  if (input === undefined) return undefined;
+  return JSON.parse(await readFile(input, 'utf8'));
 }
 
 function parseArgs(argv) {
@@ -195,8 +217,9 @@ function parseArgs(argv) {
   return args;
 }
 
-export async function verifyCatalogAssets(input, root = ROOT) {
+export async function verifyCatalogAssets(input, root = ROOT, updatesInput = undefined) {
   const registry = await readRegistry(input);
+  const updates = await readUpdates(updatesInput);
   const seed = payloadOf(await readFile(join(root, CATALOG_SEED), 'utf8'));
   const localeSeeds = {};
   for (const locale of ['zh-CN', 'en-US']) {
@@ -206,17 +229,22 @@ export async function verifyCatalogAssets(input, root = ROOT) {
     ].join('\n');
   }
   const snapshot = JSON.parse(await readFile(join(root, SNAPSHOT), 'utf8'));
-  const measured = verifyCatalog(registry, seed, localeSeeds);
+  const measured = verifyCatalog(registry, seed, localeSeeds, updates);
   if (snapshot.source.entryCount !== measured.entries) fail('snapshot entry count is stale');
   if (snapshot.source.categoryCount !== measured.categories) fail('snapshot category count is stale');
   if (snapshot.source.installTargetCount !== measured.installTargets) fail('snapshot install target count is stale');
   if (snapshot.source.mediaCount !== measured.media) fail('snapshot media count is stale');
   if (snapshot.source.capabilityCount !== measured.capabilities) fail('snapshot capability count is stale');
+  if (snapshot.source.changelog.entryCount !== measured.changelogEntries) fail('snapshot changelog count is stale');
   return measured;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = parseArgs(process.argv.slice(2));
-  const measured = await verifyCatalogAssets(typeof args.input === 'string' ? args.input : undefined);
+  const measured = await verifyCatalogAssets(
+    typeof args.input === 'string' ? args.input : undefined,
+    ROOT,
+    typeof args.updates === 'string' ? args.updates : undefined,
+  );
   process.stdout.write(`Verified dsh-market catalog: ${JSON.stringify(measured)}\n`);
 }

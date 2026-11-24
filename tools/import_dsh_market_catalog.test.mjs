@@ -153,6 +153,39 @@ test('writes the locale display sets and the snapshot from one run', async () =>
   assert.match(categories, /'工具'/);
 });
 
+test('carries the release history the market shows for a repository', () => {
+  const catalog = normalizeCatalog(document([DEMO]), {
+    url: 'https://awesome-dsh-plugin.com',
+    updated: '2026-11-24',
+    updates: {
+      'https://github.com/sdkwork/demo': {
+        release: {
+          tag: 'v1.2.3',
+          name: 'v1.2.3',
+          publishedAt: '2026-11-09T15:36:26Z',
+          url: 'https://github.com/sdkwork/demo/releases/tag/v1.2.3',
+          body: 'Stable install paths',
+        },
+        commits: [{ sha: 'a'.repeat(40), message: 'chore: release', date: '2026-11-13T08:44:25Z' }],
+        checkedAt: '2026-11-24',
+      },
+    },
+  });
+  const [entry] = catalog.entries;
+  assert.equal(entry.metadata.release.tag, 'v1.2.3');
+  assert.equal(entry.metadata.release.body, 'Stable install paths');
+  assert.equal(entry.metadata.recentCommits.length, 1);
+  assert.equal(entry.metadata.updatesCheckedAt, '2026-11-24');
+  assert.equal(catalog.changelog.entryCount, 1);
+});
+
+test('drops the NUL characters PostgreSQL refuses instead of failing the seed', () => {
+  const catalog = normalizeCatalog(document([{ ...DEMO, description: { en: 'before\u0000after', zh: '前\u0000后' } }]));
+  const sql = renderSeedSql(catalog);
+  assert.doesNotMatch(sql, /\u0000/u);
+  assert.match(sql, /beforeafter/);
+});
+
 test('rejects entries without a canonical registry URL', () => {
   assert.throws(
     () => normalizeCatalog({ plugins: [{ name: 'missing-url' }] }),

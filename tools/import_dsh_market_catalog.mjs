@@ -69,12 +69,28 @@ function sha256(value) {
 }
 
 function sqlJson(value) {
-  return `'${JSON.stringify(value ?? null).replaceAll("'", "''")}'::jsonb`;
+  return `'${JSON.stringify(stripNulDeep(value) ?? null).replaceAll("'", "''")}'::jsonb`;
+}
+
+/**
+ * PostgreSQL `jsonb` and text reject U+0000. Registry release notes carry it
+ * occasionally (an escaped NUL inside a commit message), so it is dropped at
+ * the SQL boundary instead of failing the whole seed transaction.
+ * @param value any JSON value.
+ * @returns the value with every string's NUL characters removed.
+ */
+function stripNulDeep(value) {
+  if (typeof value === 'string') return value.replaceAll('\u0000', '');
+  if (Array.isArray(value)) return value.map(stripNulDeep);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, stripNulDeep(item)]));
+  }
+  return value;
 }
 
 function sqlText(value) {
   if (value === null || value === undefined) return 'NULL';
-  return `'${String(value).replaceAll("'", "''")}'`;
+  return `'${String(value).replaceAll('\u0000', '').replaceAll("'", "''")}'`;
 }
 
 function optionalString(value) {
@@ -310,14 +326,19 @@ function capabilitiesFor(entry, capabilityIds) {
 /**
  * Project the registry document onto the SDKWork Plugins initialization data.
  * @param document parsed `plugins.json`.
+ * @param updates parsed `updates.json` (the release/commit history the market
+ *   shows per repository), when available.
  * @returns the normalized catalog: revision, categories, and entries with rows.
  */
-export function normalizeCatalog(document) {
+export function normalizeCatalog(document, updates = undefined) {
   if (!document || !Array.isArray(document.plugins)) {
     throw new Error('dsh-market catalog must contain a plugins array');
   }
   const revision = optionalString(document.updated) ?? 'unknown';
   const categoryLabels = document.categories ?? {};
+  // The changelog document is keyed by repository URL, the same origin the
+  // entry's own repository facts name.
+  const updatesByRepository = updates?.updates && typeof updates.updates === 'object' ? updates.updates : {};
 
   // Categories keep the registry's own order; the id band leaves room for
   // product categories, which are seeded separately.
@@ -381,6 +402,25 @@ export function normalizeCatalog(document) {
     const enDescription = optionalString(description.en);
     const displayName = optionalString(entry.name) ?? optionalString(entry.npm) ?? catalogUrl;
     const github = githubTarget(catalogUrl);
+    const changelog = updatesByRepository[github.repositoryUrl] ?? updatesByRepository[catalogUrl];
+    const release = changelog?.release && typeof changelog.release === 'object'
+      ? {
+        tag: optionalString(changelog.release.tag),
+        name: optionalString(changelog.release.name),
+        publishedAt: isoInstant(changelog.release.publishedAt),
+        url: optionalString(changelog.release.url),
+        body: optionalString(changelog.release.body),
+      }
+      : null;
+    const recentCommits = Array.isArray(changelog?.commits)
+      ? changelog.commits.slice(0, 10).flatMap(commit => (typeof commit?.sha === 'string' && commit.sha !== ''
+        ? [{
+          sha: commit.sha,
+          message: optionalString(commit.message),
+          date: isoInstant(commit.date),
+        }]
+        : []))
+      : [];
     const raw = Object.fromEntries(Object.entries(entry).filter(([key]) => !KNOWN_ENTRY_KEYS.has(key)));
     const downloads = boundedInteger(entry.downloads);
     const stars = boundedInteger(entry.stars);
@@ -415,6 +455,9 @@ export function normalizeCatalog(document) {
       replacement: optionalString(entry.replacement),
       previousNpm: normalizedList(entry.previousNpm),
       catalogRevision: revision,
+      release,
+      recentCommits,
+      updatesCheckedAt: isoDate(changelog?.checkedAt),
       raw,
     };
     const installTargets = installTargetsFor(entry, targetIds);
@@ -468,6 +511,12 @@ export function normalizeCatalog(document) {
     count: entries.length,
     categories,
     entries,
+    changelog: {
+      sourceUrl: optionalString(updates?.url) ?? null,
+      revision: optionalString(updates?.updated) ?? null,
+      repositoryCount: Object.keys(updatesByRepository).length,
+      entryCount: entries.filter(entry => entry.metadata.release !== null || entry.metadata.recentCommits.length > 0).length,
+    },
   };
 }
 
@@ -520,7 +569,7 @@ function entryItem(entry) {
 }
 
 export function renderSeedSql(catalog) {
-  const payload = JSON.stringify(catalog.entries.map(entryItem));
+  const payload = JSON.stringify(stripNulDeep(catalog.entries.map(entryItem)));
   // One catalog payload, loaded once into a transaction-scoped table. The
   // literal is single-quoted so the framework's seed validator sees a string,
   // not executable SQL: catalog copy does contain `--`, `/*`, and SQL words.
@@ -736,10 +785,11 @@ async function writeFileEnsured(path, content) {
  * Regenerate every catalog asset and the recorded snapshot.
  * @param document parsed `plugins.json`.
  * @param root repository root.
+ * @param updates parsed `updates.json`, when the caller has it.
  * @returns counts and checksums for the caller's report.
  */
-export async function generateCatalogAssets(document, root = DEFAULT_ROOT) {
-  const catalog = normalizeCatalog(document);
+export async function generateCatalogAssets(document, root = DEFAULT_ROOT, updates = undefined) {
+  const catalog = normalizeCatalog(document, updates);
   const files = [
     { path: CATALOG_SEED, content: renderSeedSql(catalog) },
     { path: `database/seeds/locales/zh-CN/001_plugin_categories_display.sql`, content: localeCategorySql(catalog, 'zh-CN') },
@@ -766,6 +816,7 @@ export async function generateCatalogAssets(document, root = DEFAULT_ROOT) {
       mediaCount: catalog.entries.reduce((total, entry) => total + entry.media.length, 0),
       capabilityCount: catalog.entries.reduce((total, entry) => total + entry.capabilities.length, 0),
       deprecatedCount: catalog.entries.filter(entry => entry.isDeprecated).length,
+      changelog: catalog.changelog,
     },
     seed: {
       file: CATALOG_SEED,
@@ -775,7 +826,7 @@ export async function generateCatalogAssets(document, root = DEFAULT_ROOT) {
         'en-US': [checksums['database/seeds/locales/en-US/001_plugin_categories_display.sql'], checksums['database/seeds/locales/en-US/002_plugin_catalog_display.sql']],
       },
     },
-    regenerate: 'node tools/import_dsh_market_catalog.mjs --input <plugins.json>',
+    regenerate: 'node tools/import_dsh_market_catalog.mjs --input <plugins.json> --updates <updates.json>',
   };
   await writeFileEnsured(join(root, SNAPSHOT), `${JSON.stringify(snapshot, null, 2)}\n`);
   return { catalog, checksums, snapshot };
@@ -786,6 +837,11 @@ async function readCatalog(input) {
   const response = await fetch(DEFAULT_CATALOG_URL);
   if (!response.ok) throw new Error(`catalog request failed: ${response.status}`);
   return response.json();
+}
+
+async function readUpdates(input) {
+  if (input === undefined) return undefined;
+  return JSON.parse(await readFile(input, 'utf8'));
 }
 
 function parseArgs(argv) {
@@ -804,8 +860,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const input = typeof args.input === 'string' ? args.input : undefined;
   const root = typeof args.root === 'string' ? args.root : DEFAULT_ROOT;
   const document = await readCatalog(input);
-  const { snapshot } = await generateCatalogAssets(document, root);
+  const updates = await readUpdates(typeof args.updates === 'string' ? args.updates : undefined);
+  const { snapshot } = await generateCatalogAssets(document, root, updates);
   process.stdout.write(`Imported ${snapshot.source.entryCount} dsh-market entries at revision ${snapshot.source.revision} `
     + `(${snapshot.source.categoryCount} categories, ${snapshot.source.installTargetCount} install targets, `
-    + `${snapshot.source.mediaCount} media rows, ${snapshot.source.capabilityCount} capability rows) into ${root}\n`);
+    + `${snapshot.source.mediaCount} media rows, ${snapshot.source.capabilityCount} capability rows, `
+    + `${snapshot.source.changelog.entryCount} changelog entries) into ${root}\n`);
 }

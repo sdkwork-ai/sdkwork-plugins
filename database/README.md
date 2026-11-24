@@ -34,19 +34,23 @@ plugin authored in the admin console is not a dsh-market catalog entry.
 
 The standard seed profile includes the generated
 `common/003_dsh_market_catalog.sql` — the whole public dsh-market registry
-(entries, categories, install targets, media, capability disclosures) — plus the
-display sets under `seeds/locales/{zh-CN,en-US}/`. Regenerate everything, and
-the recorded snapshot, with:
+(entries, categories, install targets, media, capability disclosures, and the
+`updates.json` release/commit history) — plus the display sets under
+`seeds/locales/{zh-CN,en-US}/`. Regenerate everything, and the recorded
+snapshot, with:
 
 ```bash
-node tools/import_dsh_market_catalog.mjs --input <plugins.json>
+node tools/import_dsh_market_catalog.mjs --input <plugins.json> --updates <updates.json>
+node tools/verify_dsh_market_catalog.mjs --input <plugins.json> --updates <updates.json>
 ```
 
-The source revision, entry/child counts, and the checksums of every generated
+The source revisions, entry/child counts, and the checksums of every generated
 file are recorded in `seeds/dsh-market-catalog.snapshot.json`. Identifiers are
 derived from the registry's unique catalog URL, so a re-import is
-order-independent and idempotent. The registry `install` text is kept for
-display only; the install target used by clients is the derived
+order-independent and idempotent. PostgreSQL `jsonb` and text reject U+0000,
+which a release body occasionally carries; the importer drops it at the SQL
+boundary rather than failing the seed transaction. The registry `install` text
+is kept for display only; the install target used by clients is the derived
 `ai_plugin_install_target` row.
 
 ## Initialization state

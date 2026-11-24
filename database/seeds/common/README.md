@@ -10,12 +10,15 @@ Locale-specific display copy lives under `seeds/locales/{locale}/`.
   `(tenant_id, category_code)`.
 - `002_plugin_catalog.sql` seeds the SDKWork-authored plugin records.
 - `003_dsh_market_catalog.sql` is a generated, idempotent projection of the
-  dsh-market `plugins.json` catalog: 12,961 entries across 23 categories, their
-  machine facts, the full registry projection, and the child rows for install
-  targets (21,806 rows, one default per entry), media (11,570), and capability
-  disclosures (39,906). Regenerate it with
-  `pnpm db:import:dsh-market -- --input <plugins.json>` after reviewing a
-  catalog update.
+  dsh-market `plugins.json` catalog plus the `updates.json` changelog: 12,961
+  entries across 23 categories, their machine facts, the full registry
+  projection, and the child rows for install targets (21,806 rows, one default
+  per entry), media (11,570), capability disclosures (39,906), and the latest
+  release/commit history for 12,959 repositories. Regenerate it with
+  `pnpm db:import:dsh-market -- --input <plugins.json> --updates <updates.json>`
+  after reviewing a catalog update. `node tools/verify_dsh_market_catalog.mjs
+  --input <plugins.json> --updates <updates.json>` fails when any registry field
+  or changelog record is missing.
 
 The catalog record's `name_locales_json` / `description_locales_json` columns
 carry every translation the registry publishes, because the marketplace
