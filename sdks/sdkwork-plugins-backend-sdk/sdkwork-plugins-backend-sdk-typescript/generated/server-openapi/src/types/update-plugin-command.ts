@@ -1,4 +1,5 @@
 import type { PluginArtifactSource } from './plugin-artifact-source';
+import type { PluginMarketplaceMetadata } from './plugin-marketplace-metadata';
 
 /** Partial update command; omitted fields leave the stored value unchanged. */
 export interface UpdatePluginCommand {
@@ -18,6 +19,7 @@ export interface UpdatePluginCommand {
   /** Target entity lifecycle. The deleted state is only reachable through pluginsAdmin.deletePlugin. */
   lifecycleStatus?: 'draft' | 'active' | 'disabled' | 'archived';
   source?: PluginArtifactSource;
+  marketplaceMetadata?: PluginMarketplaceMetadata;
   /** Localized display names keyed by BCP-47 locale. */
   nameLocales?: Record<string, string>;
   /** Localized descriptions keyed by BCP-47 locale. */

@@ -28,10 +28,11 @@ crate manifests and handlers exactly.
 | GET | `/app/v3/api/plugin_categories` | `plugins.listCategories` | `plugins.marketplace.read` | 200 `data.items` + `data.pageInfo` |
 
 The catalog record includes localized copy, icon and featured-card media,
-featured ordering and a usage count. The count is a catalog statistic and is
-not a per-user install record. `plugins.marketplace.install` remains reserved
-in the permission inventory until the user-scoped install lifecycle has an
-authoritative runtime target and persistence contract.
+featured ordering, a usage count, the registry facts captured at import time
+and its ranked install targets (`installTarget` is the stored default target,
+`installTargets` is ordered by source priority). Installation itself is a local
+Host action performed by the client's Host profile; no SDKWork API executes it
+and no SDKWork-side install permission gates it.
 
 ## Wire contract
 
@@ -57,8 +58,8 @@ authoritative runtime target and persistence contract.
     `allowed_role_codes`). Neither filter widens tenant or visibility scoping.
 
 - int64 wire fields (`id`, `organizationId`, `ownerUserId`, `version`,
-  `categoryId`) are decimal strings with `x-sdkwork-int64-string: true`
-  (`API_SPEC.md` section 13.6).
+  `categoryId`, `starsCount`, `downloadsCount`) are decimal strings with
+  `x-sdkwork-int64-string: true` (`API_SPEC.md` section 13.6).
 - Catalog reads (`GET /app/v3/api/plugins` and
   `GET /app/v3/api/plugins/{pluginKey}`) are scoped by `ai_plugin.visibility`:
   `tenant`/`public` are visible to every caller of the tenant, `organization`

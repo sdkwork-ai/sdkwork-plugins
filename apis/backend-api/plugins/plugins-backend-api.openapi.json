@@ -1063,7 +1063,32 @@
           "featuredOrder",
           "featuredTitleLocales",
           "featuredDescriptionLocales",
-          "featuredImageUrl"
+          "featuredImageUrl",
+          "catalogProvider",
+          "catalogUrl",
+          "catalogPageUrl",
+          "ownerLogin",
+          "npmPackage",
+          "tarballUrl",
+          "repositoryUrl",
+          "repositoryPath",
+          "repositoryRef",
+          "registryVersion",
+          "addedOn",
+          "starsCount",
+          "starsCheckedAt",
+          "downloadsCount",
+          "downloadsStart",
+          "downloadsEnd",
+          "downloadsCheckedAt",
+          "isDeprecated",
+          "replacedByCatalogUrl",
+          "catalogRevision",
+          "installTarget",
+          "installTargets",
+          "media",
+          "capabilities",
+          "capabilityRedLines"
         ],
         "properties": {
           "id": {
@@ -1203,6 +1228,9 @@
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
           },
+          "marketplaceMetadata": {
+            "$ref": "#/components/schemas/PluginMarketplaceMetadata"
+          },
           "nameLocales": {
             "type": "object",
             "additionalProperties": {
@@ -1266,6 +1294,193 @@
               "null"
             ],
             "description": "Featured-card image URL resolved through SDKWork media."
+          },
+          "catalogProvider": {
+            "type": "string",
+            "default": "sdkwork",
+            "maxLength": 32,
+            "description": "Provider that authored the catalog entry: `sdkwork` for SDKWork-owned rows, `dsh-market` for curated registry imports."
+          },
+          "catalogUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "maxLength": 4096,
+            "description": "Registry-authoritative identity of a catalog entry."
+          },
+          "catalogPageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Human-readable registry page for the entry."
+          },
+          "ownerLogin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Registry owner login, such as a GitHub account."
+          },
+          "npmPackage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 214
+          },
+          "tarballUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "repositoryUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "repositoryPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repositoryRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "registryVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "addedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Registry first-publication date (YYYY-MM-DD)."
+          },
+          "starsCount": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Star count captured by the catalog importer (API_SPEC §13.6)."
+          },
+          "starsCheckedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "downloadsCount": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Download count captured by the catalog importer (API_SPEC §13.6)."
+          },
+          "downloadsStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "First day of the download-count window (YYYY-MM-DD)."
+          },
+          "downloadsEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Last day of the download-count window (YYYY-MM-DD)."
+          },
+          "downloadsCheckedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "isDeprecated": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the registry marks the entry as deprecated."
+          },
+          "replacedByCatalogUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Successor entry named by a deprecated registry record."
+          },
+          "catalogRevision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32,
+            "description": "Catalog snapshot revision the entry was imported from."
+          },
+          "installTarget": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PluginInstallTarget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stored default install target, when the catalog provides one."
+          },
+          "installTargets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginInstallTarget"
+            },
+            "default": [],
+            "description": "Every stored install target, ordered by source priority."
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginMedia"
+            },
+            "default": [],
+            "description": "Media assets, ordered by kind then display order."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Declared capability codes, in disclosure order."
+          },
+          "capabilityRedLines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "Declared red-line disclosures, in disclosure order."
           }
         }
       },
@@ -1379,6 +1594,9 @@
           },
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
+          },
+          "marketplaceMetadata": {
+            "$ref": "#/components/schemas/PluginMarketplaceMetadata"
           },
           "nameLocales": {
             "type": "object",
@@ -1527,6 +1745,9 @@
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
           },
+          "marketplaceMetadata": {
+            "$ref": "#/components/schemas/PluginMarketplaceMetadata"
+          },
           "nameLocales": {
             "type": "object",
             "additionalProperties": {
@@ -1578,6 +1799,125 @@
             ],
             "description": "Featured-card image URL resolved through SDKWork media."
           }
+        }
+      },
+      "PluginInstallTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One stored install target of a catalog plugin. `kind` selects the installer namespace and `spec` is the complete specification for it.",
+        "required": [
+          "kind",
+          "spec",
+          "packageName",
+          "packageVersion",
+          "isDefault"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "registry",
+              "archive",
+              "git",
+              "path",
+              "drive"
+            ]
+          },
+          "spec": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Complete installer specification for `kind`, for example `@scope/pkg@1.2.3` or `git+https://...git#main&path:/plugins/demo`."
+          },
+          "packageName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 214
+          },
+          "packageVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "PluginMedia": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One media asset attached to a catalog plugin.",
+        "required": [
+          "kind",
+          "url",
+          "sortOrder"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "icon",
+              "screenshot",
+              "featured",
+              "cover"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Display order inside the media kind."
+          }
+        }
+      },
+      "PluginMarketplaceMetadata": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Curated registry metadata. catalogUrl is the registry-authoritative identity; install is display-only.",
+        "required": ["provider", "catalogUrl"],
+        "properties": {
+          "provider": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "catalogUrl": { "type": "string", "format": "uri", "minLength": 1, "maxLength": 4096 },
+          "pageUrl": { "type": ["string", "null"], "format": "uri" },
+          "owner": { "type": ["string", "null"] },
+          "npmPackage": { "type": ["string", "null"] },
+          "tarballUrl": { "type": ["string", "null"], "format": "uri" },
+          "repositoryUrl": { "type": ["string", "null"], "format": "uri" },
+          "repositoryPath": { "type": ["string", "null"] },
+          "repositoryRef": { "type": ["string", "null"] },
+          "version": { "type": ["string", "null"] },
+          "install": { "type": ["string", "null"], "description": "Display-only legacy CLI text." },
+          "categories": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "added": { "type": ["string", "null"] },
+          "stars": { "type": ["string", "null"], "format": "int64", "pattern": "^[0-9]+$", "x-sdkwork-int64-string": true },
+          "starsCheckedAt": { "type": ["string", "null"], "format": "date-time" },
+          "downloads": { "type": ["string", "null"], "format": "int64", "pattern": "^[0-9]+$", "x-sdkwork-int64-string": true },
+          "downloadsStart": { "type": ["string", "null"] },
+          "downloadsEnd": { "type": ["string", "null"] },
+          "downloadsCheckedAt": { "type": ["string", "null"], "format": "date-time" },
+          "githubReleaseDownloads": { "type": ["string", "null"], "format": "int64", "pattern": "^[0-9]+$", "x-sdkwork-int64-string": true },
+          "releaseManifest": { "type": ["object", "null"], "additionalProperties": true },
+          "iconUrl": { "type": ["string", "null"], "format": "uri" },
+          "screenshots": { "type": "array", "items": { "type": "string", "format": "uri" }, "default": [] },
+          "capabilities": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "capabilityRedLines": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "capabilityCheckedAt": { "type": ["string", "null"], "format": "date-time" },
+          "deprecated": { "type": "boolean", "default": false },
+          "replacement": { "type": ["string", "null"] },
+          "previousNpm": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "catalogRevision": { "type": ["string", "null"] },
+          "raw": { "type": "object", "additionalProperties": true, "default": {} }
         }
       },
       "PluginArtifactDriveFileSource": {

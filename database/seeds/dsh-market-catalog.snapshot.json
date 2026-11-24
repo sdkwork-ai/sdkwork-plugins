@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.plugins.dsh-market.catalog-snapshot",
+  "source": {
+    "catalogUrl": "https://awesome-dsh-plugin.com",
+    "catalogName": "dsh-market",
+    "revision": "2026-11-24",
+    "updated": "2026-11-24",
+    "entryCount": 12961,
+    "categoryCount": 23,
+    "installTargetCount": 21806,
+    "mediaCount": 11570,
+    "capabilityCount": 39906,
+    "deprecatedCount": 0
+  },
+  "seed": {
+    "file": "database/seeds/common/003_dsh_market_catalog.sql",
+    "checksum": "sha256:a7322c9824928175ef8554d0f2429bbbfe81c79afdd85241a28adaa956112bf9",
+    "localeSeeds": {
+      "zh-CN": [
+        "sha256:d49dc22f95ba148aeaaf7e9d1d6a1d2008c5fbc520b6dfe9f41337c4bbd20aaf",
+        "sha256:961718376407c5097963148ce6fc47679ae975bb2175ec1aa1c248f70f99655c"
+      ],
+      "en-US": [
+        "sha256:fca2a1350f90f298cd71b4a91850db4362c6223893c6b497b75ba6ed65eb11eb",
+        "sha256:9c457b1faff4b6435f05562110b9fe3e44aee45b4542800cb56eb6df0b6123af"
+      ]
+    }
+  },
+  "regenerate": "node tools/import_dsh_market_catalog.mjs --input <plugins.json>"
+}

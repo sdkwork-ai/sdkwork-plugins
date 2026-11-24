@@ -8,6 +8,12 @@ fn empty_json_object() -> serde_json::Value {
     serde_json::json!({})
 }
 
+/// Catalog provider of a plugin that predates the catalog columns: SDKWork
+/// authored the record itself.
+fn default_catalog_provider() -> String {
+    "sdkwork".to_string()
+}
+
 /// Where a managed plugin's package content comes from.
 ///
 /// Mirrors the Skills artifact-source contract so the admin surfaces stay
@@ -43,6 +49,109 @@ pub enum PluginArtifactSource {
         #[serde(default, rename = "gitRef")]
         git_ref: Option<String>,
     },
+}
+
+/// Catalog metadata imported from an external plugin registry.
+///
+/// The artifact `source` above describes content owned by SDKWork. This
+/// projection describes a curated discovery entry and keeps the registry's
+/// install target separate from uploaded artifacts. `catalogUrl` is the
+/// stable identity submitted to a registry-authoritative installer. The
+/// `install` string is display-only and must never be treated as an install
+/// target by a client.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginMarketplaceMetadata {
+    pub provider: String,
+    pub catalog_url: String,
+    #[serde(default)]
+    pub page_url: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub npm_package: Option<String>,
+    #[serde(default)]
+    pub tarball_url: Option<String>,
+    #[serde(default)]
+    pub repository_url: Option<String>,
+    #[serde(default)]
+    pub repository_path: Option<String>,
+    #[serde(default)]
+    pub repository_ref: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub install: Option<String>,
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub added: Option<String>,
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    pub stars: Option<u64>,
+    #[serde(default)]
+    pub stars_checked_at: Option<String>,
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    pub downloads: Option<u64>,
+    #[serde(default)]
+    pub downloads_start: Option<String>,
+    #[serde(default)]
+    pub downloads_end: Option<String>,
+    #[serde(default)]
+    pub downloads_checked_at: Option<String>,
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    pub github_release_downloads: Option<u64>,
+    #[serde(default)]
+    pub release_manifest: Option<serde_json::Value>,
+    #[serde(default)]
+    pub icon_url: Option<String>,
+    #[serde(default)]
+    pub screenshots: Vec<String>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub capability_red_lines: Vec<String>,
+    #[serde(default)]
+    pub capability_checked_at: Option<String>,
+    #[serde(default)]
+    pub deprecated: bool,
+    #[serde(default)]
+    pub replacement: Option<String>,
+    #[serde(default)]
+    pub previous_npm: Vec<String>,
+    #[serde(default)]
+    pub catalog_revision: Option<String>,
+    /// Original registry entry retained for forward-compatible re-projection.
+    #[serde(default)]
+    pub raw: serde_json::Value,
+}
+
+/// One stored install target of a catalog plugin.
+///
+/// `kind` selects the installer namespace (`registry`, `archive`, `git`,
+/// `path`, `drive`) and `spec` is the complete specification for it, so a
+/// client never has to rebuild the target from display copy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallTarget {
+    pub kind: String,
+    pub spec: String,
+    #[serde(default)]
+    pub package_name: Option<String>,
+    #[serde(default)]
+    pub package_version: Option<String>,
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+/// One media asset attached to a catalog plugin.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginMedia {
+    /// `icon`, `screenshot`, `featured`, or `cover`.
+    pub kind: String,
+    pub url: String,
+    /// Display order inside the media kind.
+    pub sort_order: i32,
 }
 
 /// Marketplace category grouping managed plugins.
@@ -133,6 +242,86 @@ pub struct PluginRecord {
     pub manifest: serde_json::Value,
     /// Package content source. `None` keeps legacy manifest-only plugins valid.
     pub source: Option<PluginArtifactSource>,
+    /// Optional curated registry projection. This is catalog metadata, not
+    /// proof that the current user has installed the plugin.
+    #[serde(default)]
+    pub marketplace_metadata: Option<PluginMarketplaceMetadata>,
+    /// Provider that authored the catalog entry: `sdkwork` for SDKWork-owned
+    /// rows, `dsh-market` for curated registry imports.
+    #[serde(default = "default_catalog_provider")]
+    pub catalog_provider: String,
+    /// Registry-authoritative identity of a catalog entry.
+    #[serde(default)]
+    pub catalog_url: Option<String>,
+    /// Human-readable registry page for the entry, when the registry has one.
+    #[serde(default)]
+    pub catalog_page_url: Option<String>,
+    /// Registry owner login (for example a GitHub account).
+    #[serde(default)]
+    pub owner_login: Option<String>,
+    /// npm package name when the entry is installable from a registry.
+    #[serde(default)]
+    pub npm_package: Option<String>,
+    /// Release archive URL of the entry.
+    #[serde(default)]
+    pub tarball_url: Option<String>,
+    /// Source repository of the entry.
+    #[serde(default)]
+    pub repository_url: Option<String>,
+    /// Sub-directory inside the source repository.
+    #[serde(default)]
+    pub repository_path: Option<String>,
+    /// Branch or tag the entry was imported at.
+    #[serde(default)]
+    pub repository_ref: Option<String>,
+    /// Version published in the package registry, when the entry has one.
+    #[serde(default)]
+    pub registry_version: Option<String>,
+    /// Registry first-publication date (`YYYY-MM-DD`).
+    #[serde(default)]
+    pub added_on: Option<String>,
+    /// Star count captured by the catalog importer.
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64")]
+    pub stars_count: u64,
+    /// When `stars_count` was captured.
+    #[serde(default)]
+    pub stars_checked_at: Option<String>,
+    /// Download count captured by the catalog importer.
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64")]
+    pub downloads_count: u64,
+    /// First day of the download-count window (`YYYY-MM-DD`).
+    #[serde(default)]
+    pub downloads_start: Option<String>,
+    /// Last day of the download-count window (`YYYY-MM-DD`).
+    #[serde(default)]
+    pub downloads_end: Option<String>,
+    /// When `downloads_count` was captured.
+    #[serde(default)]
+    pub downloads_checked_at: Option<String>,
+    /// Whether the registry marks the entry as deprecated.
+    #[serde(default)]
+    pub is_deprecated: bool,
+    /// Successor entry named by a deprecated registry record.
+    #[serde(default)]
+    pub replaced_by_catalog_url: Option<String>,
+    /// Catalog snapshot revision the entry was imported from.
+    #[serde(default)]
+    pub catalog_revision: Option<String>,
+    /// The stored default install target, when the catalog provides one.
+    #[serde(default)]
+    pub install_target: Option<PluginInstallTarget>,
+    /// Every stored install target, ordered by source priority.
+    #[serde(default)]
+    pub install_targets: Vec<PluginInstallTarget>,
+    /// Media assets, ordered by kind then display order.
+    #[serde(default)]
+    pub media: Vec<PluginMedia>,
+    /// Declared capability codes, in disclosure order.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    /// Declared red-line disclosures, in disclosure order.
+    #[serde(default)]
+    pub capability_red_lines: Vec<String>,
     pub install_status: PluginInstallStatus,
     pub tags: Vec<String>,
     /// IAM role codes allowed to see and use this plugin. An empty list means
@@ -163,4 +352,107 @@ pub fn normalize_allowed_role_codes(values: &[String]) -> Vec<String> {
     codes.sort();
     codes.dedup();
     codes
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::PluginRecord;
+
+    fn base_record() -> Value {
+        json!({
+            "id": "1", "uuid": "plugin.demo", "organizationId": "0", "ownerUserId": "0",
+            "pluginKey": "dsh-demo", "name": "Demo", "description": null,
+            "nameLocales": {}, "descriptionLocales": {}, "iconUrl": null, "usageCount": "0",
+            "featured": false, "featuredOrder": 0, "featuredTitleLocales": {},
+            "featuredDescriptionLocales": {}, "featuredImageUrl": null, "categoryId": null,
+            "categoryCode": null, "versionLabel": "1.0.0", "provider": "dsh-market",
+            "implementationType": "custom", "visibility": "public", "manifest": {},
+            "source": null, "marketplaceMetadata": null, "installStatus": "available",
+            "tags": [], "allowedRoleCodes": [], "status": "active", "version": "1",
+            "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"
+        })
+    }
+
+    #[test]
+    fn catalog_fields_default_when_a_record_predates_the_catalog_columns() {
+        let record: PluginRecord =
+            serde_json::from_value(base_record()).expect("decode a legacy plugin record");
+        assert_eq!(record.catalog_provider, "sdkwork");
+        assert_eq!(record.stars_count, 0);
+        assert_eq!(record.downloads_count, 0);
+        assert!(!record.is_deprecated);
+        assert!(record.install_target.is_none());
+        assert!(record.install_targets.is_empty());
+        assert!(record.media.is_empty());
+
+        let wire = serde_json::to_value(&record).expect("encode the plugin record");
+        assert_eq!(wire["catalogProvider"], json!("sdkwork"));
+        assert_eq!(wire["starsCount"], json!("0"));
+        assert_eq!(wire["downloadsCount"], json!("0"));
+        assert_eq!(wire["isDeprecated"], json!(false));
+        assert_eq!(wire["installTarget"], Value::Null);
+        assert_eq!(wire["installTargets"], json!([]));
+        assert_eq!(wire["media"], json!([]));
+        assert_eq!(wire["capabilities"], json!([]));
+        assert_eq!(wire["capabilityRedLines"], json!([]));
+    }
+
+    #[test]
+    fn catalog_facts_and_ranked_targets_round_trip_in_camel_case() {
+        let mut value = base_record();
+        value["catalogProvider"] = json!("dsh-market");
+        value["catalogUrl"] = json!("https://github.com/example/dsh-pet");
+        value["ownerLogin"] = json!("example");
+        value["starsCount"] = json!("73");
+        value["downloadsCount"] = json!("117679");
+        value["addedOn"] = json!("2026-10-27");
+        value["isDeprecated"] = json!(true);
+        value["installTargets"] = json!([
+            {
+                "kind": "registry",
+                "spec": "@example/dsh-pet@0.4.21",
+                "packageName": "@example/dsh-pet",
+                "packageVersion": "0.4.21",
+                "isDefault": true
+            },
+            {
+                "kind": "git",
+                "spec": "git+https://github.com/example/dsh-pet.git",
+                "packageName": null,
+                "packageVersion": null,
+                "isDefault": false
+            }
+        ]);
+        value["installTarget"] = value["installTargets"][0].clone();
+        value["media"] = json!([
+            {"kind": "screenshot", "url": "https://example.invalid/shot.png", "sortOrder": 2}
+        ]);
+        value["capabilities"] = json!(["network", "fs-read"]);
+        value["capabilityRedLines"] = json!(["reads credentials and calls the network"]);
+
+        let record: PluginRecord =
+            serde_json::from_value(value).expect("decode a complete catalog record");
+        assert_eq!(record.catalog_provider, "dsh-market");
+        assert_eq!(record.stars_count, 73);
+        assert_eq!(record.downloads_count, 117_679);
+        assert_eq!(record.added_on.as_deref(), Some("2026-10-27"));
+        assert!(record.is_deprecated);
+        assert_eq!(record.install_targets.len(), 2);
+        assert!(record.install_targets[0].is_default);
+        assert_eq!(record.install_targets[1].kind, "git");
+        assert_eq!(record.install_target.as_ref().map(|target| target.kind.as_str()), Some("registry"));
+        assert_eq!(record.media[0].sort_order, 2);
+        assert_eq!(record.capabilities, vec!["network", "fs-read"]);
+        assert_eq!(record.capability_red_lines.len(), 1);
+
+        let wire = serde_json::to_value(&record).expect("encode the catalog record");
+        assert_eq!(wire["starsCount"], json!("73"), "int64 facts stay decimal strings");
+        assert_eq!(wire["downloadsCount"], json!("117679"));
+        assert_eq!(wire["installTarget"]["kind"], json!("registry"));
+        assert_eq!(wire["installTargets"][1]["packageVersion"], Value::Null);
+        assert_eq!(wire["media"][0]["sortOrder"], json!(2));
+        assert_eq!(wire["capabilityRedLines"][0], json!("reads credentials and calls the network"));
+    }
 }

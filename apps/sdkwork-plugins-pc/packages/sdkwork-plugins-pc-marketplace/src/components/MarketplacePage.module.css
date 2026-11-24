@@ -4,6 +4,7 @@
   --market-line: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.12));
   --market-text: var(--dsw-alias-label-primary, #f4f4f5);
   --market-muted: var(--dsw-alias-label-secondary, #a1a1aa);
+  --market-danger: var(--dsw-alias-label-error, #f87171);
   min-height: 100%;
   color: var(--market-text);
   background: var(--market-bg);
@@ -81,7 +82,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.actionButton:hover, .connectButton:hover { background: rgba(255, 255, 255, 0.08); }
+.actionButton:hover, .installButton:hover, .removeButton:hover { background: rgba(255, 255, 255, 0.08); }
 .categories {
   gap: 6px;
   padding: 12px 24px;
@@ -100,7 +101,7 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.categoryActive { color: var(--market-text); background: rgba(255, 255, 255, 0.12); font-weight: 600; }
+.categoryActive { color: var(--market-text); background: rgba(255, 255, 255, 0.12); font-weight: 500; }
 .content { padding: 8px 24px 40px; }
 .featured {
   display: grid;
@@ -119,12 +120,20 @@
   color: inherit;
   background: var(--market-surface);
   text-align: left;
+}
+.featureCopy { display: grid; gap: 9px; min-width: 0; }
+.eyebrow { color: var(--market-muted); font-size: 13px; font-weight: 500; }
+.featureTitle, .featureTitleLink { font-size: 20px; font-weight: 500; line-height: 1.35; }
+.featureTitleLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
 }
-.featureCard:hover { border-color: var(--market-line); }
-.featureCopy { display: grid; gap: 9px; min-width: 0; }
-.eyebrow { color: var(--market-muted); font-size: 13px; font-weight: 600; }
-.featureTitle { font-size: 20px; font-weight: 650; line-height: 1.35; }
+.featureTitleLink:hover { text-decoration: underline; }
 .featureDescription { color: var(--market-muted); line-height: 1.55; }
 .featureImage {
   width: 104px;
@@ -157,10 +166,10 @@
   place-items: center;
   color: var(--market-text);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 500;
 }
 .pluginCopy { min-width: 0; }
-.pluginName { overflow: hidden; font-size: 16px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.pluginName { overflow: hidden; font-size: 16px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .pluginDescription {
   display: -webkit-box;
   overflow: hidden;
@@ -172,8 +181,7 @@
 }
 .pluginUsage { margin-top: 2px; color: var(--market-muted); font-size: 13px; }
 .loadMore { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 18px 0; color: var(--market-muted); font-size: 13px; }
-.featureCard:disabled { cursor: default; }
-.connectButton {
+.installButton {
   min-width: 58px;
   min-height: 38px;
   padding: 0 11px;
@@ -185,6 +193,42 @@
   cursor: pointer;
   white-space: nowrap;
 }
+.installControls {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+}
+.pluginRow > .installControls { justify-items: end; text-align: right; }
+.installMeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.installedBadge {
+  padding: 1px 8px;
+  border: 1px solid var(--market-line);
+  border-radius: 999px;
+  color: var(--market-text);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.versionText { color: var(--market-muted); font-size: 12px; white-space: nowrap; }
+.installActions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.removeButton {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--market-muted);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.installReason { max-width: 210px; color: var(--market-muted); font-size: 12px; line-height: 1.45; }
+.installFailed { max-width: 210px; color: var(--market-danger); font-size: 12px; line-height: 1.45; }
+.installButton:disabled, .removeButton:disabled { color: var(--market-muted); cursor: default; }
+.installButton:disabled:hover, .removeButton:disabled:hover { background: transparent; }
+.installButton[aria-disabled='true'] { color: var(--market-muted); cursor: default; }
+.installButton[aria-disabled='true']:hover { background: transparent; }
 .status {
   display: grid;
   justify-items: center;
@@ -228,7 +272,9 @@
   .featureImage { width: 82px; height: 82px; }
   .sectionHeading { margin: 30px 0 12px; font-size: 20px; }
   .pluginGrid { grid-template-columns: minmax(0, 1fr); }
-  .pluginRow { grid-template-columns: 48px minmax(0, 1fr) auto; min-height: 96px; gap: 12px; padding-inline: 0; }
+  .pluginRow { grid-template-columns: 48px minmax(0, 1fr); min-height: 96px; gap: 12px; padding-inline: 0; }
+  .pluginRow > .installControls { grid-column: 1 / -1; justify-items: start; text-align: left; }
+  .installReason, .installFailed { max-width: none; }
   .pluginIcon { width: 48px; height: 48px; border-radius: 13px; }
   .pluginName { font-size: 15px; }
   .pluginDescription { font-size: 13px; }

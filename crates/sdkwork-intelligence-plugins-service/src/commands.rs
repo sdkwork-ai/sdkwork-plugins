@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use sdkwork_plugins_contract::{
     PluginArtifactSource, PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
-    PluginVisibility,
+    PluginMarketplaceMetadata, PluginVisibility,
 };
 
 fn empty_json_object() -> serde_json::Value {
@@ -54,6 +54,8 @@ pub struct CreatePluginCommand {
     pub manifest: Option<serde_json::Value>,
     /// Package content source. Optional for legacy manifest-only plugins.
     pub source: Option<PluginArtifactSource>,
+    /// Curated registry metadata. This never represents current-user install state.
+    pub marketplace_metadata: Option<PluginMarketplaceMetadata>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
@@ -84,6 +86,7 @@ pub struct UpdatePluginCommand {
     pub visibility: Option<PluginVisibility>,
     pub manifest: Option<serde_json::Value>,
     pub source: Option<PluginArtifactSource>,
+    pub marketplace_metadata: Option<PluginMarketplaceMetadata>,
     pub install_status: Option<PluginInstallStatus>,
     pub tags: Option<Vec<String>>,
     pub allowed_role_codes: Option<Vec<String>>,

@@ -2,7 +2,7 @@ schema_version: 1
 kind: sdkwork.database.schema
 database_role: authoritative-server
 module_id: plugins
-contract_version: 1.0.0
+contract_version: 1.1.0
 owner_team: plugins-platform
 compliance_level: L2
 engines:
@@ -14,6 +14,18 @@ tables:
     owner: plugins-platform
     module: registry
   - name: ai_plugin
+    lifecycle_status: active
+    owner: plugins-platform
+    module: registry
+  - name: ai_plugin_install_target
+    lifecycle_status: active
+    owner: plugins-platform
+    module: registry
+  - name: ai_plugin_media
+    lifecycle_status: active
+    owner: plugins-platform
+    module: registry
+  - name: ai_plugin_capability
     lifecycle_status: active
     owner: plugins-platform
     module: registry

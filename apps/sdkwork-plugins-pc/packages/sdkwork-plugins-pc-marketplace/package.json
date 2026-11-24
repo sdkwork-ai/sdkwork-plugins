@@ -16,7 +16,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/marketplaceService.test.mjs"
+    "test": "node --experimental-strip-types --test tests/marketplaceService.test.mjs tests/marketplacePage.test.mjs"
   },
   "dependencies": {
     "@sdkwork/plugins-app-sdk": "workspace:*"

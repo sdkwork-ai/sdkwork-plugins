@@ -1,5 +1,7 @@
 //! Marketplace HTTP surface for the SDKWork Plugins capability
-//! (`/app/v3/api/plugins`, `/app/v3/api/plugin_categories`). Read-only.
+//! (`/app/v3/api/plugins`, `/app/v3/api/plugin_categories`). A catalog record
+//! carries its ranked install targets as record data; the API never executes a
+//! local installation.
 //!
 //! Success bodies use the `SdkWorkApiResponse` envelope: lists return
 //! `data.items` + `data.pageInfo`, retrieval returns `data.item`.

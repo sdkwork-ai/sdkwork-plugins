@@ -11,7 +11,7 @@
   ],
   "defaultEngine": "postgres",
   "tablePrefix": "ai_plugin",
-  "contractVersion": "1.0.0",
+  "contractVersion": "1.1.0",
   "baselineStrategy": "baseline-plus-migrations",
   "baselineAnchorTable": "ai_plugin",
   "modules": [],
@@ -32,7 +32,10 @@
   "readiness": {
     "requiredTables": [
       "ai_plugin_category",
-      "ai_plugin"
+      "ai_plugin",
+      "ai_plugin_install_target",
+      "ai_plugin_media",
+      "ai_plugin_capability"
     ]
   },
   "paths": {

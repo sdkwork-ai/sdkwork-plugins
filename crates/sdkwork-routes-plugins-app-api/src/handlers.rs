@@ -135,7 +135,8 @@ fn filter_plugins(items: Vec<PluginRecord>, query: &SdkWorkListQuery) -> Vec<Plu
 mod tests {
     use sdkwork_intelligence_plugins_service::PluginsRepository;
     use sdkwork_plugins_contract::{
-        PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
+        PluginImplementationType, PluginInstallStatus, PluginInstallTarget, PluginLifecycleStatus,
+        PluginMedia, PluginVisibility,
     };
     use sdkwork_utils_rust::CatalogViewQuery;
 
@@ -167,6 +168,32 @@ mod tests {
             visibility: PluginVisibility::Tenant,
             manifest: serde_json::json!({}),
             source: None,
+            marketplace_metadata: None,
+            catalog_provider: "sdkwork".to_string(),
+            catalog_url: None,
+            catalog_page_url: None,
+            owner_login: None,
+            npm_package: None,
+            tarball_url: None,
+            repository_url: None,
+            repository_path: None,
+            repository_ref: None,
+            registry_version: None,
+            added_on: None,
+            stars_count: 0,
+            stars_checked_at: None,
+            downloads_count: 0,
+            downloads_start: None,
+            downloads_end: None,
+            downloads_checked_at: None,
+            is_deprecated: false,
+            replaced_by_catalog_url: None,
+            catalog_revision: None,
+            install_target: None,
+            install_targets: Vec::new(),
+            media: Vec::new(),
+            capabilities: Vec::new(),
+            capability_red_lines: Vec::new(),
             install_status: PluginInstallStatus::Available,
             tags: vec![],
             allowed_role_codes: roles.iter().map(|role| role.to_string()).collect(),
@@ -838,5 +865,90 @@ mod tests {
                 .expect("admin reads the hidden plugin");
             assert_eq!(admin.plugin_key, key);
         }
+    }
+
+    #[tokio::test]
+    async fn catalog_list_and_retrieve_carry_the_stored_install_targets_and_children() {
+        let repository = sdkwork_intelligence_plugins_service::InMemoryPluginRepository::default();
+        let mut record = plugin("dsh-pet", Some("fun"), &[]);
+        record.catalog_provider = "dsh-market".to_string();
+        record.catalog_url = Some("https://github.com/example/dsh-pet".to_string());
+        record.catalog_page_url = Some("https://awesome-dsh-plugin.com/p/example/dsh-pet/".to_string());
+        record.owner_login = Some("example".to_string());
+        record.stars_count = 73;
+        record.downloads_count = 117_679;
+        record.is_deprecated = false;
+        // Ranked the way the repository hydrates them: default target first,
+        // then the remaining targets by source priority.
+        record.install_targets = vec![
+            PluginInstallTarget {
+                kind: "registry".to_string(),
+                spec: "@example/dsh-pet@0.4.21".to_string(),
+                package_name: Some("@example/dsh-pet".to_string()),
+                package_version: Some("0.4.21".to_string()),
+                is_default: true,
+            },
+            PluginInstallTarget {
+                kind: "git".to_string(),
+                spec: "git+https://github.com/example/dsh-pet.git".to_string(),
+                package_name: None,
+                package_version: None,
+                is_default: false,
+            },
+        ];
+        record.install_target = record.install_targets.first().cloned();
+        record.media = vec![
+            PluginMedia {
+                kind: "icon".to_string(),
+                url: "https://raw.githubusercontent.com/example/dsh-pet/main/icon.png".to_string(),
+                sort_order: 0,
+            },
+            PluginMedia {
+                kind: "screenshot".to_string(),
+                url: "https://raw.githubusercontent.com/example/dsh-pet/main/shot-1.png".to_string(),
+                sort_order: 1,
+            },
+        ];
+        record.capabilities = vec!["network".to_string(), "fs-read".to_string()];
+        record.capability_red_lines = vec!["reads credentials and calls the network".to_string()];
+        seed(&repository, 7, record).await;
+        let service = sdkwork_intelligence_plugins_service::PluginsService::new(repository);
+
+        let page = list_plugins(&service, 7, 0, 0, &SdkWorkListQuery::default())
+            .await
+            .expect("catalog page");
+        let listed = page.items.first().expect("one catalog record");
+        let default_target = listed.install_target.as_ref().expect("default install target");
+        assert_eq!(default_target.kind, "registry");
+        assert_eq!(default_target.spec, "@example/dsh-pet@0.4.21");
+        assert_eq!(default_target.package_version.as_deref(), Some("0.4.21"));
+        assert_eq!(listed.install_targets.len(), 2);
+        assert_eq!(
+            listed
+                .install_targets
+                .iter()
+                .map(|target| target.kind.as_str())
+                .collect::<Vec<_>>(),
+            vec!["registry", "git"],
+            "install targets keep their ranked order in the response"
+        );
+        assert_eq!(listed.media.len(), 2);
+        assert_eq!(listed.capabilities, vec!["network", "fs-read"]);
+        assert_eq!(
+            listed.capability_red_lines,
+            vec!["reads credentials and calls the network"]
+        );
+        assert_eq!(listed.catalog_provider, "dsh-market");
+        assert_eq!(listed.stars_count, 73);
+        assert_eq!(listed.downloads_count, 117_679);
+
+        let retrieved = retrieve_plugin(&service, 7, 0, 0, "dsh-pet")
+            .await
+            .expect("catalog retrieve");
+        assert_eq!(retrieved.item.install_target, listed.install_target);
+        assert_eq!(retrieved.item.install_targets, listed.install_targets);
+        assert_eq!(retrieved.item.media, listed.media);
+        assert_eq!(retrieved.item.capabilities, listed.capabilities);
+        assert_eq!(retrieved.item.capability_red_lines, listed.capability_red_lines);
     }
 }

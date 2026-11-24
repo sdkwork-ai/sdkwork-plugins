@@ -10,5 +10,7 @@ pub const PERM_ADMIN_PLUGIN_READ: &str = "plugins.admin.plugin.read";
 pub const PERM_ADMIN_PLUGIN_MANAGE: &str = "plugins.admin.plugin.manage";
 /// Read the tenant plugin marketplace catalog.
 pub const PERM_MARKETPLACE_READ: &str = "plugins.marketplace.read";
-/// Install/enable a marketplace plugin for the authenticated principal.
+/// Reserved install permission. Installation runs in the client's Host
+/// profile, so no SDKWork route requires this code; it stays in the IAM
+/// catalog so existing grants remain resolvable.
 pub const PERM_MARKETPLACE_INSTALL: &str = "plugins.marketplace.install";

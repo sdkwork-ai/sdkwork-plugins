@@ -17,6 +17,30 @@
       "table_name": "ai_plugin",
       "compliance_level": "L2",
       "lifecycle_status": "active"
+    },
+    {
+      "prefix": "ai_plugin",
+      "owner": "plugins-platform",
+      "module": "registry",
+      "table_name": "ai_plugin_install_target",
+      "compliance_level": "L2",
+      "lifecycle_status": "active"
+    },
+    {
+      "prefix": "ai_plugin",
+      "owner": "plugins-platform",
+      "module": "registry",
+      "table_name": "ai_plugin_media",
+      "compliance_level": "L2",
+      "lifecycle_status": "active"
+    },
+    {
+      "prefix": "ai_plugin",
+      "owner": "plugins-platform",
+      "module": "registry",
+      "table_name": "ai_plugin_capability",
+      "compliance_level": "L2",
+      "lifecycle_status": "active"
     }
   ]
 }

@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { PluginCategoryRecord, PluginRecord } from '@sdkwork/plugins-app-sdk';
 import type { MarketplaceAppClient, MarketplaceCatalog } from '../services/marketplaceService.ts';
-import { loadMarketplaceCatalog, marketplacePluginInstallAvailable, mergeMarketplaceCatalog } from '../services/marketplaceService.ts';
+import { loadMarketplaceCatalog, mergeMarketplaceCatalog } from '../services/marketplaceService.ts';
+import { marketplaceCardState, type MarketplaceCardState } from '../marketplaceCardState.ts';
 import { marketplaceMessagesFor, type MarketplaceLocale } from '../i18n/index.ts';
+import type { MarketplaceInstallationState, MarketplaceMessages } from '../types.ts';
 import styles from './MarketplacePage.module.css';
+
+export type { MarketplaceInstallationState, MarketplaceInstallTarget, MarketplaceInstallTargetKind } from '../types.ts';
 
 type MarketplaceCategory = PluginCategoryRecord;
 
@@ -12,10 +16,23 @@ export interface MarketplacePageProps {
   locale?: MarketplaceLocale;
   onManage?: () => void;
   onAdd?: () => void;
-  onConnect?: (plugin: PluginRecord) => void;
+  onInstall?: (plugin: PluginRecord) => void;
+  /** Install the catalog version over the installed one (host decides how). */
+  onUpdate?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+  /** Uninstall the installed package. */
+  onRemove?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+  /** Open the plugin's own page. Without it the card is not a link. */
   onOpenPlugin?: (plugin: PluginRecord) => void;
+  /** Installed state for one catalog record, read from the local Host. */
+  installationOf?: (plugin: PluginRecord) => MarketplaceInstallationState | undefined;
+  /** Why installation is unavailable for this record right now (already localized). */
+  installDisabledReason?: (plugin: PluginRecord) => string | undefined;
+  /** Catalog records with an install run in flight. */
+  installingKeys?: ReadonlySet<string>;
   activeSection?: 'plugins' | 'skills' | 'partners';
   onSectionChange?: (section: 'plugins' | 'skills' | 'partners') => void;
+  /** Hide the embedded section switcher when a host provides the shared one. */
+  showSectionNavigation?: boolean;
   canInstall?: boolean;
 }
 
@@ -36,15 +53,112 @@ function useDebouncedSearch(value: string, delayMs = 180): string {
   return query;
 }
 
+/** Visible explanation for a disabled install or update control. */
+function controlReason(state: MarketplaceCardState, messages: MarketplaceMessages): string | undefined {
+  if (state.installing) return undefined;
+  // An installed up-to-date record only keeps its uninstall action, which the
+  // install state cannot block.
+  if (state.installed && !state.updateAvailable) return undefined;
+  if (state.reason !== undefined) return state.reason;
+  if (state.installed) return state.updateEnabled ? undefined : messages.installDisabled;
+  if (!state.available) return messages.sourceUnavailable;
+  return state.installEnabled ? undefined : messages.installDisabled;
+}
+
+interface InstallControlsProps {
+  plugin: PluginRecord;
+  installation?: MarketplaceInstallationState;
+  state: MarketplaceCardState;
+  messages: MarketplaceMessages;
+  onInstall?: (plugin: PluginRecord) => void;
+  onUpdate?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+  onRemove?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+}
+
+/**
+ * The only install surface on a card: a featured shelf body never installs, and
+ * the popular row reuses the same controls so both layouts share one state model.
+ */
+function InstallControls({ plugin, installation, state, messages, onInstall, onUpdate, onRemove }: InstallControlsProps) {
+  const reasonId = useId();
+  const [failure, setFailure] = useState<'install' | 'remove' | undefined>();
+  const run = (kind: 'install' | 'remove', action: (() => void) | undefined) => action === undefined ? undefined : () => {
+    setFailure(undefined);
+    try {
+      action();
+    } catch {
+      // A Host callback that throws has already consumed the user action; report it on the card.
+      setFailure(kind);
+    }
+  };
+  const install = run('install', onInstall === undefined ? undefined : () => { onInstall(plugin); });
+  const update = run('install', onUpdate === undefined || installation === undefined ? undefined : () => { onUpdate(plugin, installation); });
+  const remove = run('remove', onRemove === undefined || installation === undefined ? undefined : () => { onRemove(plugin, installation); });
+  const reason = controlReason(state, messages);
+  const installDisabled = !state.installEnabled;
+  const updateDisabled = !state.updateEnabled;
+  const installFailed = failure === 'install' && !state.installing && (!state.installed || state.updateAvailable);
+  const removeFailed = failure === 'remove' && state.installed && !state.installing;
+  return (
+    <span className={styles.installControls}>
+      <span className={styles.installMeta}>
+        {state.installed ? <span className={styles.installedBadge}>{state.installedVersion === undefined ? messages.installed : messages.installedVersion(state.installedVersion)}</span> : null}
+        {state.installed && state.updateAvailable && state.version !== undefined ? <span className={styles.versionText}>{messages.updateTo(state.version)}</span> : null}
+        {!state.installed && state.version !== undefined ? <span className={styles.versionText}>{state.version}</span> : null}
+      </span>
+      <span className={styles.installActions}>
+        {state.installing ? (
+          // Keeps keyboard focus on the card while the Host runs the install.
+          <button type="button" className={styles.installButton} aria-disabled="true" aria-busy="true">{messages.installing}</button>
+        ) : null}
+        {!state.installing && !state.installed ? (
+          <button
+            type="button"
+            className={styles.installButton}
+            disabled={installDisabled}
+            title={installDisabled ? reason : undefined}
+            aria-describedby={installDisabled && reason !== undefined ? reasonId : undefined}
+            onClick={install}
+          >
+            {messages.install}
+          </button>
+        ) : null}
+        {!state.installing && state.installed && state.updateAvailable ? (
+          <button
+            type="button"
+            className={styles.installButton}
+            disabled={updateDisabled}
+            title={updateDisabled ? reason : undefined}
+            aria-describedby={updateDisabled && reason !== undefined ? reasonId : undefined}
+            onClick={update}
+          >
+            {messages.update}
+          </button>
+        ) : null}
+        {state.installed ? <button type="button" className={styles.removeButton} disabled={!state.removeEnabled} onClick={remove}>{messages.remove}</button> : null}
+      </span>
+      {reason === undefined ? null : <span id={reasonId} className={styles.installReason}>{reason}</span>}
+      {installFailed ? <span role="alert" className={styles.installFailed}>{messages.installFailed}</span> : null}
+      {removeFailed ? <span role="alert" className={styles.installFailed}>{messages.removeFailed}</span> : null}
+    </span>
+  );
+}
+
 export function MarketplacePage({
   appClient,
   locale = 'zh-CN',
   onManage,
   onAdd,
-  onConnect,
+  onInstall,
+  onUpdate,
+  onRemove,
   onOpenPlugin,
+  installationOf,
+  installDisabledReason,
+  installingKeys,
   activeSection = 'plugins',
   onSectionChange,
+  showSectionNavigation = true,
   canInstall = true,
 }: MarketplacePageProps) {
   const messages = marketplaceMessagesFor(locale);
@@ -91,11 +205,23 @@ export function MarketplacePage({
   }, [appClient, query, categoryCode, retryVersion, page]);
 
   const { categories, featuredPlugins: featured, popularPlugins: popular, hasMore } = catalog;
+  const cardState = (plugin: PluginRecord): { installation?: MarketplaceInstallationState; state: MarketplaceCardState } => {
+    const installation = installationOf?.(plugin);
+    return {
+      installation,
+      state: marketplaceCardState(plugin, {
+        installation,
+        installing: installingKeys?.has(plugin.pluginKey) ?? false,
+        canInstall,
+        reason: installDisabledReason?.(plugin),
+      }),
+    };
+  };
 
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <nav className={styles.mainNav} aria-label="Plugin sections">
+        {showSectionNavigation && <nav className={styles.mainNav} aria-label={messages.sectionNavigationLabel}>
           <svg className={styles.brandMark} viewBox="0 0 24 24" aria-hidden="true">
             <rect x="2.5" y="3.5" width="19" height="17" rx="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
             <path d="M8.5 4v16" stroke="currentColor" strokeWidth="1.8" />
@@ -103,7 +229,7 @@ export function MarketplacePage({
           <button type="button" className={`${styles.navLink} ${activeSection === 'plugins' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'plugins' ? 'page' : undefined} onClick={() => { onSectionChange?.('plugins'); }}>{messages.navigation.plugins}</button>
           <button type="button" className={`${styles.navLink} ${activeSection === 'skills' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'skills' ? 'page' : undefined} onClick={() => { onSectionChange?.('skills'); }}>{messages.navigation.skills}</button>
           <button type="button" className={`${styles.navLink} ${activeSection === 'partners' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'partners' ? 'page' : undefined} onClick={() => { onSectionChange?.('partners'); }}>{messages.navigation.partners}</button>
-        </nav>
+        </nav>}
         <div className={styles.toolbar}>
           <label className={styles.search}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" strokeWidth="1.8" /><path d="m16 16 5 5" stroke="currentColor" strokeWidth="1.8" /></svg>
@@ -122,7 +248,7 @@ export function MarketplacePage({
         </div>
       </header>
 
-      <nav className={styles.categories} aria-label="Plugin categories">
+      <nav className={styles.categories} aria-label={messages.categoryNavigationLabel}>
         <button type="button" className={`${styles.category} ${categoryCode === undefined ? styles.categoryActive : ''}`} onClick={() => { setCategoryCode(undefined); }}>{messages.featured}</button>
         {categories.map(category => (
           <button key={category.categoryCode} type="button" className={`${styles.category} ${categoryCode === category.categoryCode ? styles.categoryActive : ''}`} onClick={() => { setCategoryCode(category.categoryCode); }}>
@@ -148,34 +274,42 @@ export function MarketplacePage({
         <div className={styles.content}>
           {featured.length > 0 && categoryCode === undefined && !query && (
             <section className={styles.featured} aria-label={messages.featured}>
-              {featured.map(plugin => (
-                <button key={plugin.pluginKey} type="button" className={styles.featureCard} disabled={!marketplacePluginInstallAvailable(plugin, canInstall)} title={!plugin.source ? messages.sourceUnavailable : undefined} onClick={() => { onOpenPlugin?.(plugin); }}>
-                  <span className={styles.featureCopy}>
-                    <span className={styles.eyebrow}>{messages.featured}</span>
-                  <span className={styles.featureTitle}>{localizedText(plugin.featuredTitleLocales, locale) || localizedText(plugin.nameLocales, locale) || plugin.name}</span>
-                    <span className={styles.featureDescription}>{localizedText(plugin.featuredDescriptionLocales, locale) || localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}</span>
-                  </span>
-                  {plugin.featuredImageUrl || plugin.iconUrl ? <img className={styles.featureImage} src={plugin.featuredImageUrl || plugin.iconUrl || ''} alt="" /> : null}
-                </button>
-              ))}
+              {featured.map(plugin => {
+                const { installation, state } = cardState(plugin);
+                const title = localizedText(plugin.featuredTitleLocales, locale) || localizedText(plugin.nameLocales, locale) || plugin.name;
+                const description = localizedText(plugin.featuredDescriptionLocales, locale) || localizedText(plugin.descriptionLocales, locale) || plugin.description || '';
+                return (
+                  <article className={styles.featureCard} key={plugin.pluginKey}>
+                    <span className={styles.featureCopy}>
+                      <span className={styles.eyebrow}>{messages.featured}</span>
+                      {onOpenPlugin === undefined
+                        ? <span className={styles.featureTitle}>{title}</span>
+                        : <button type="button" className={styles.featureTitleLink} onClick={() => { onOpenPlugin(plugin); }}>{title}</button>}
+                      <span className={styles.featureDescription}>{description}</span>
+                      <InstallControls plugin={plugin} installation={installation} state={state} messages={messages} onInstall={onInstall} onUpdate={onUpdate} onRemove={onRemove} />
+                    </span>
+                    {plugin.featuredImageUrl || plugin.iconUrl ? <img className={styles.featureImage} src={plugin.featuredImageUrl || plugin.iconUrl || ''} alt="" /> : null}
+                  </article>
+                );
+              })}
             </section>
           )}
           <h1 className={styles.sectionHeading}>{messages.popular}</h1>
           <section className={styles.pluginGrid} aria-label={messages.popular}>
-            {popular.map(plugin => (
-              <article className={styles.pluginRow} key={plugin.pluginKey}>
-                {plugin.iconUrl ? <img className={styles.pluginIcon} src={plugin.iconUrl} alt="" loading="lazy" /> : <div className={`${styles.pluginIcon} ${styles.pluginFallback}`} aria-hidden="true">{plugin.name.slice(0, 1)}</div>}
-                <div className={styles.pluginCopy}>
-                  <div className={styles.pluginName} title={localizedText(plugin.nameLocales, locale) || plugin.name}>{localizedText(plugin.nameLocales, locale) || plugin.name}</div>
-                  <div className={styles.pluginDescription} title={localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}>{localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}</div>
-                  {!plugin.source ? <div className={styles.pluginUsage}>{messages.sourceUnavailable}</div> : null}
-                  {plugin.usageCount != null ? <div className={styles.pluginUsage}>{messages.usage(plugin.usageCount)}</div> : null}
-                </div>
-                <button type="button" className={styles.connectButton} disabled={!marketplacePluginInstallAvailable(plugin, canInstall)} title={!plugin.source ? messages.sourceUnavailable : undefined} onClick={() => { onConnect?.(plugin); }}>
-                  {messages.connect}
-                </button>
-              </article>
-            ))}
+            {popular.map(plugin => {
+              const { installation, state } = cardState(plugin);
+              return (
+                <article className={styles.pluginRow} key={plugin.pluginKey}>
+                  {plugin.iconUrl ? <img className={styles.pluginIcon} src={plugin.iconUrl} alt="" loading="lazy" /> : <div className={`${styles.pluginIcon} ${styles.pluginFallback}`} aria-hidden="true">{plugin.name.slice(0, 1)}</div>}
+                  <div className={styles.pluginCopy}>
+                    <div className={styles.pluginName} title={localizedText(plugin.nameLocales, locale) || plugin.name}>{localizedText(plugin.nameLocales, locale) || plugin.name}</div>
+                    <div className={styles.pluginDescription} title={localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}>{localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}</div>
+                    {plugin.usageCount != null ? <div className={styles.pluginUsage}>{messages.usage(plugin.usageCount)}</div> : null}
+                  </div>
+                  <InstallControls plugin={plugin} installation={installation} state={state} messages={messages} onInstall={onInstall} onUpdate={onUpdate} onRemove={onRemove} />
+                </article>
+              );
+            })}
           </section>
           {error ? <div className={styles.loadMore} role="alert">{messages.loadError}<button type="button" className={styles.statusButton} onClick={() => { setRetryVersion(value => value + 1); }}>{messages.retry}</button></div> : null}
           {hasMore && !error ? <div className={styles.loadMore}><button type="button" className={styles.statusButton} disabled={loading} onClick={() => { setPage(value => value + 1); }}>{loading ? messages.loadingMore : messages.loadMore}</button></div> : null}

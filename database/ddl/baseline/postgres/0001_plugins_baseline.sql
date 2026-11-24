@@ -3,7 +3,12 @@
 -- Application is in initialization state: full DDL lives here; migrations/ is reserved for post-GA changes.
 
 -- baseline source: ddl/baseline/postgres/0001_plugins_baseline.sql
--- Plugins module baseline DDL (postgres) — contract v1.0.0
+-- Plugins module baseline DDL (postgres) — contract v1.1.0
+--
+-- The baseline expresses the end state of the whole migration chain it was
+-- consolidated from (0002 artifact sources, 0003 marketplace metadata, 0004
+-- marketplace registry, 0005 catalog completeness). Migrations remain the
+-- upgrade path for databases provisioned before a fold.
 
 CREATE TABLE IF NOT EXISTS ai_plugin_category (
     id BIGINT NOT NULL PRIMARY KEY,
@@ -15,6 +20,7 @@ CREATE TABLE IF NOT EXISTS ai_plugin_category (
     description TEXT,
     name_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     description_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    taxonomy_source VARCHAR(32) NOT NULL DEFAULT 'product',
     sort_order INTEGER NOT NULL DEFAULT 0,
     lifecycle_status SMALLINT NOT NULL DEFAULT 1,
     version BIGINT NOT NULL DEFAULT 0,
@@ -26,12 +32,13 @@ CREATE TABLE IF NOT EXISTS ai_plugin_category (
     UNIQUE (uuid),
     UNIQUE (tenant_id, category_code),
     CONSTRAINT ck_ai_plugin_category_name_locales_object CHECK (jsonb_typeof(name_locales_json) = 'object'),
-    CONSTRAINT ck_ai_plugin_category_description_locales_object CHECK (jsonb_typeof(description_locales_json) = 'object')
+    CONSTRAINT ck_ai_plugin_category_description_locales_object CHECK (jsonb_typeof(description_locales_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_category_taxonomy_source CHECK (taxonomy_source IN ('product', 'dsh-market'))
 );
 
 CREATE TABLE IF NOT EXISTS ai_plugin (
     id BIGINT NOT NULL PRIMARY KEY,
-    uuid VARCHAR(64) NOT NULL,
+    uuid VARCHAR(128) NOT NULL,
     tenant_id BIGINT NOT NULL,
     organization_id BIGINT NOT NULL DEFAULT 0,
     owner_user_id BIGINT NOT NULL DEFAULT 0,
@@ -55,10 +62,31 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     visibility VARCHAR(32) NOT NULL DEFAULT 'tenant',
     manifest_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     source_json JSONB,
+    marketplace_metadata_json JSONB,
     install_status VARCHAR(32) NOT NULL DEFAULT 'available',
     lifecycle_status SMALLINT NOT NULL DEFAULT 1,
     tags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     allowed_role_codes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    catalog_provider VARCHAR(32) NOT NULL DEFAULT 'sdkwork',
+    catalog_url TEXT,
+    catalog_page_url TEXT,
+    owner_login VARCHAR(128),
+    npm_package VARCHAR(214),
+    tarball_url TEXT,
+    repository_url TEXT,
+    repository_path TEXT,
+    repository_ref VARCHAR(128),
+    registry_version VARCHAR(64),
+    added_on DATE,
+    stars_count BIGINT NOT NULL DEFAULT 0,
+    stars_checked_at TIMESTAMPTZ,
+    downloads_count BIGINT NOT NULL DEFAULT 0,
+    downloads_start DATE,
+    downloads_end DATE,
+    downloads_checked_at TIMESTAMPTZ,
+    is_deprecated BOOLEAN NOT NULL DEFAULT FALSE,
+    replaced_by_catalog_url TEXT,
+    catalog_revision VARCHAR(32),
     version BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -75,11 +103,94 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     CONSTRAINT ck_ai_plugin_source
         CHECK (source_json IS NULL OR jsonb_typeof(source_json) = 'object'),
     CONSTRAINT ck_ai_plugin_source_kind
-        CHECK (source_json IS NULL OR source_json ->> 'kind' IN ('drive_file', 'drive_directory', 'git'))
+        CHECK (source_json IS NULL OR source_json ->> 'kind' IN ('drive_file', 'drive_directory', 'git')),
+    CONSTRAINT ck_ai_plugin_marketplace_metadata
+        CHECK (marketplace_metadata_json IS NULL OR jsonb_typeof(marketplace_metadata_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_catalog_provider CHECK (catalog_provider <> ''),
+    CONSTRAINT ck_ai_plugin_stars_count_nonnegative CHECK (stars_count >= 0),
+    CONSTRAINT ck_ai_plugin_downloads_count_nonnegative CHECK (downloads_count >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS ai_plugin_install_target (
+    id BIGINT NOT NULL PRIMARY KEY,
+    uuid VARCHAR(64) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    organization_id BIGINT NOT NULL DEFAULT 0,
+    plugin_id BIGINT NOT NULL,
+    target_kind VARCHAR(16) NOT NULL,
+    target_spec TEXT NOT NULL,
+    package_name VARCHAR(214),
+    package_version VARCHAR(64),
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    source_priority INTEGER NOT NULL DEFAULT 0,
+    verified_at TIMESTAMPTZ,
+    lifecycle_status SMALLINT NOT NULL DEFAULT 1,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMPTZ,
+    UNIQUE (uuid),
+    UNIQUE (tenant_id, plugin_id, target_kind, target_spec),
+    CONSTRAINT ck_ai_plugin_install_target_kind
+        CHECK (target_kind IN ('registry', 'archive', 'git', 'path', 'drive')),
+    CONSTRAINT ck_ai_plugin_install_target_spec CHECK (target_spec <> '')
+);
+
+CREATE TABLE IF NOT EXISTS ai_plugin_media (
+    id BIGINT NOT NULL PRIMARY KEY,
+    uuid VARCHAR(64) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    organization_id BIGINT NOT NULL DEFAULT 0,
+    plugin_id BIGINT NOT NULL,
+    media_kind VARCHAR(16) NOT NULL,
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    mime_type VARCHAR(128),
+    width INTEGER,
+    height INTEGER,
+    source_url TEXT,
+    lifecycle_status SMALLINT NOT NULL DEFAULT 1,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMPTZ,
+    UNIQUE (uuid),
+    UNIQUE (tenant_id, plugin_id, media_kind, sort_order),
+    CONSTRAINT ck_ai_plugin_media_kind CHECK (media_kind IN ('icon', 'screenshot', 'featured', 'cover')),
+    CONSTRAINT ck_ai_plugin_media_url CHECK (url <> '')
+);
+
+CREATE TABLE IF NOT EXISTS ai_plugin_capability (
+    id BIGINT NOT NULL PRIMARY KEY,
+    uuid VARCHAR(64) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    organization_id BIGINT NOT NULL DEFAULT 0,
+    plugin_id BIGINT NOT NULL,
+    disclosure_kind VARCHAR(16) NOT NULL DEFAULT 'capability',
+    capability_code VARCHAR(255) NOT NULL,
+    checked_at TIMESTAMPTZ,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    lifecycle_status SMALLINT NOT NULL DEFAULT 1,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    updated_by BIGINT NOT NULL DEFAULT 0,
+    deleted_at TIMESTAMPTZ,
+    UNIQUE (uuid),
+    UNIQUE (tenant_id, plugin_id, disclosure_kind, capability_code),
+    CONSTRAINT ck_ai_plugin_capability_kind CHECK (disclosure_kind IN ('capability', 'red_line')),
+    CONSTRAINT ck_ai_plugin_capability_code CHECK (capability_code <> '')
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_tenant
     ON ai_plugin_category (tenant_id, lifecycle_status);
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_taxonomy
+    ON ai_plugin_category (tenant_id, taxonomy_source, sort_order);
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_tenant
     ON ai_plugin (tenant_id, lifecycle_status);
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_ref
@@ -87,46 +198,40 @@ CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_ref
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_featured
     ON ai_plugin (tenant_id, is_featured DESC, featured_order ASC, usage_count DESC)
     WHERE lifecycle_status = 1 AND deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_plugin_catalog_entry
+    ON ai_plugin (tenant_id, catalog_provider, catalog_url)
+    WHERE catalog_url IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_deprecated
+    ON ai_plugin (tenant_id, is_deprecated) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_added
+    ON ai_plugin (tenant_id, added_on DESC)
+    WHERE catalog_url IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_downloads
+    ON ai_plugin (tenant_id, downloads_count DESC)
+    WHERE catalog_url IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_stars
+    ON ai_plugin (tenant_id, stars_count DESC)
+    WHERE catalog_url IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_marketplace_catalog_url
+    ON ai_plugin ((marketplace_metadata_json ->> 'catalogUrl'))
+    WHERE marketplace_metadata_json IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_marketplace_provider
+    ON ai_plugin ((marketplace_metadata_json ->> 'provider'))
+    WHERE marketplace_metadata_json IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_plugin_install_target_default
+    ON ai_plugin_install_target (tenant_id, plugin_id)
+    WHERE is_default AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_install_target_plugin
+    ON ai_plugin_install_target (tenant_id, plugin_id, source_priority) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_media_plugin
+    ON ai_plugin_media (tenant_id, plugin_id, media_kind, sort_order) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_capability_plugin
+    ON ai_plugin_capability (tenant_id, plugin_id, disclosure_kind, sort_order) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_capability_code
+    ON ai_plugin_capability (tenant_id, disclosure_kind, capability_code) WHERE deleted_at IS NULL;
 
--- folded migration: migrations/postgres/0002_plugin_artifact_sources.up.sql
--- sdkwork:migration
--- id: 0002_plugin_artifact_sources
--- engine: postgres
--- module: sdkwork-plugins
--- purpose: Add the structured plugin artifact source descriptor (Drive archive,
---   Drive directory, or Git repository) used by the plugin create/edit forms.
---   Existing manifest-only plugins keep a NULL source.
--- reversible: false
--- rollback: forward-fix (dropping source_json would discard every plugin's
---   package identity; the column is nullable so leaving it in place is safe)
--- transactional: true
--- lock: lightweight
--- lock_timeout: 2s
--- statement_timeout: 30s
-
-BEGIN;
-
-ALTER TABLE ai_plugin
-    ADD COLUMN IF NOT EXISTS source_json JSONB;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'ck_ai_plugin_source'
-    ) THEN
-        ALTER TABLE ai_plugin
-            ADD CONSTRAINT ck_ai_plugin_source
-            CHECK (source_json IS NULL OR jsonb_typeof(source_json) = 'object');
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'ck_ai_plugin_source_kind'
-    ) THEN
-        ALTER TABLE ai_plugin
-            ADD CONSTRAINT ck_ai_plugin_source_kind
-            CHECK (source_json IS NULL OR source_json ->> 'kind' IN ('drive_file', 'drive_directory', 'git'));
-    END IF;
-END
-$$;
-
-COMMIT;
+-- folded migrations: migrations/postgres/0002_plugin_artifact_sources.up.sql,
+--   0003_plugin_marketplace_metadata.up.sql, 0004_plugin_marketplace_registry.up.sql,
+--   0005_plugin_catalog_completeness.up.sql.
+-- The migration files stay committed: they are the upgrade path for databases
+-- provisioned before this fold, and their checksums are recorded as applied.

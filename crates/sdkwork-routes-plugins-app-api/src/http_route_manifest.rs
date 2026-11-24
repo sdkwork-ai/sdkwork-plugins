@@ -32,9 +32,9 @@ const HTTP_ROUTES: &[HttpRoute] = &[
     ),
 ];
 
-/// Marketplace install permission reserved for the future install lifecycle
-/// command surface (`plugins.install`). It has no route yet; declaring the
-/// constant here keeps the permission inventory complete for IAM seeding.
+/// The user-scoped install lifecycle has moved to the client's Host profile,
+/// so the marketplace serves install targets as record data and the code
+/// stays a reserved IAM inventory export rather than a route permission.
 pub const RESERVED_MARKETPLACE_INSTALL_PERMISSION: &str = PERM_MARKETPLACE_INSTALL;
 
 pub fn app_route_manifest() -> HttpRouteManifest {

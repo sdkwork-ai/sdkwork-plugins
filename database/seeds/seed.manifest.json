@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "sdkwork.database.seed",
-  "i18nVersion": "1.0.0",
+  "i18nVersion": "1.1.0",
   "defaultLocale": "zh-CN",
   "fallbackLocale": "zh-CN",
   "supportedLocales": [
@@ -24,31 +24,46 @@
         "common/002_plugin_catalog.sql"
       ],
       "locales": {
-        "zh-CN": []
+        "zh-CN": [],
+        "en-US": []
       }
     },
     "standard": {
       "common": [
         "common/001_plugin_categories.sql",
-        "common/002_plugin_catalog.sql"
+        "common/002_plugin_catalog.sql",
+        "common/003_dsh_market_catalog.sql"
       ],
       "locales": {
-        "zh-CN": []
+        "zh-CN": [
+          "001_plugin_categories_display.sql",
+          "002_plugin_catalog_display.sql"
+        ],
+        "en-US": [
+          "001_plugin_categories_display.sql",
+          "002_plugin_catalog_display.sql"
+        ]
       }
     }
   },
   "localeSets": {
     "zh-CN": {
-      "version": "1.0.0",
-      "required": false,
-      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "files": []
+      "version": "1.1.0",
+      "required": true,
+      "checksum": "sha256:9112d3f235f247ee283f8bbf4dfd9bd533b721e6b73a3cdb2de4ceaa1ca10b6b",
+      "files": [
+        "locales/zh-CN/001_plugin_categories_display.sql",
+        "locales/zh-CN/002_plugin_catalog_display.sql"
+      ]
     },
     "en-US": {
-      "version": "1.0.0",
-      "required": false,
-      "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "files": []
+      "version": "1.1.0",
+      "required": true,
+      "checksum": "sha256:c1f9f651e6fb888f61a850a13c7d39bce58f4ef92b525155472678aa8ea21fdc",
+      "files": [
+        "locales/en-US/001_plugin_categories_display.sql",
+        "locales/en-US/002_plugin_catalog_display.sql"
+      ]
     }
   },
   "sets": []

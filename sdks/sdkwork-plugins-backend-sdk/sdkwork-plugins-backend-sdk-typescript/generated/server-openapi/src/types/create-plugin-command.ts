@@ -1,4 +1,5 @@
 import type { PluginArtifactSource } from './plugin-artifact-source';
+import type { PluginMarketplaceMetadata } from './plugin-marketplace-metadata';
 
 export interface CreatePluginCommand {
   pluginKey: string;
@@ -16,6 +17,7 @@ export interface CreatePluginCommand {
   /** IAM role codes allowed to see and use this plugin. An empty list means every role (the default). */
   allowedRoleCodes?: string[];
   source?: PluginArtifactSource;
+  marketplaceMetadata?: PluginMarketplaceMetadata;
   /** Localized display names keyed by BCP-47 locale. */
   nameLocales?: Record<string, string>;
   /** Localized descriptions keyed by BCP-47 locale. */

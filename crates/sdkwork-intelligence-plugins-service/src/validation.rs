@@ -1,7 +1,7 @@
 use sdkwork_plugins_contract::{
     normalize_allowed_role_codes, PluginArtifactSource, PluginCategoryRecord,
-    PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginRecord,
-    PluginVisibility,
+    PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
+    PluginMarketplaceMetadata, PluginRecord, PluginVisibility,
 };
 use sdkwork_utils_rust::{is_blank, trim};
 
@@ -188,6 +188,28 @@ fn validate_artifact_source(source: &PluginArtifactSource) -> PluginsResult<()> 
     Ok(())
 }
 
+fn validate_marketplace_metadata(metadata: &PluginMarketplaceMetadata) -> PluginsResult<()> {
+    let catalog_url = metadata.catalog_url.trim();
+    if catalog_url.is_empty()
+        || !(catalog_url.starts_with("https://") || catalog_url.starts_with("http://"))
+    {
+        return Err(PluginsServiceError::InvalidArgument(
+            "marketplaceMetadata.catalogUrl must be an absolute http(s) URL".to_string(),
+        ));
+    }
+    if metadata.provider.trim().is_empty() {
+        return Err(PluginsServiceError::InvalidArgument(
+            "marketplaceMetadata.provider must not be empty".to_string(),
+        ));
+    }
+    if metadata.categories.iter().any(|value| value.trim().is_empty()) {
+        return Err(PluginsServiceError::InvalidArgument(
+            "marketplaceMetadata.categories must not contain empty values".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn validate_category_record(record: &PluginCategoryRecord) -> PluginsResult<()> {
     validate_category_code(record.category_code.as_str())?;
     require_name(record.name.as_str(), "category name")?;
@@ -213,6 +235,9 @@ pub fn validate_plugin_record(record: &PluginRecord) -> PluginsResult<()> {
     validate_manifest(&record.manifest)?;
     if let Some(source) = record.source.as_ref() {
         validate_artifact_source(source)?;
+    }
+    if let Some(metadata) = record.marketplace_metadata.as_ref() {
+        validate_marketplace_metadata(metadata)?;
     }
     validate_tags(&record.tags)?;
     validate_role_codes(&record.allowed_role_codes)?;
@@ -352,6 +377,34 @@ pub fn plugin_record_from_create(
             .clone()
             .unwrap_or_else(|| serde_json::json!({})),
         source: command.source.clone(),
+        marketplace_metadata: command.marketplace_metadata.clone(),
+        // Admin-created plugins are not catalog rows: the registry facts and
+        // their child collections are owned by the catalog importer.
+        catalog_provider: "sdkwork".to_string(),
+        catalog_url: None,
+        catalog_page_url: None,
+        owner_login: None,
+        npm_package: None,
+        tarball_url: None,
+        repository_url: None,
+        repository_path: None,
+        repository_ref: None,
+        registry_version: None,
+        added_on: None,
+        stars_count: 0,
+        stars_checked_at: None,
+        downloads_count: 0,
+        downloads_start: None,
+        downloads_end: None,
+        downloads_checked_at: None,
+        is_deprecated: false,
+        replaced_by_catalog_url: None,
+        catalog_revision: None,
+        install_target: None,
+        install_targets: Vec::new(),
+        media: Vec::new(),
+        capabilities: Vec::new(),
+        capability_red_lines: Vec::new(),
         install_status: PluginInstallStatus::Available,
         tags: normalize_tags(&command.tags),
         allowed_role_codes: normalize_allowed_role_codes(&command.allowed_role_codes),
@@ -389,6 +442,9 @@ pub fn validate_update_command(command: &UpdatePluginCommand) -> PluginsResult<(
     }
     if let Some(source) = command.source.as_ref() {
         validate_artifact_source(source)?;
+    }
+    if let Some(metadata) = command.marketplace_metadata.as_ref() {
+        validate_marketplace_metadata(metadata)?;
     }
     if let Some(tags) = command.tags.as_ref() {
         validate_tags(tags)?;
@@ -470,6 +526,9 @@ pub fn apply_update(record: &mut PluginRecord, command: &UpdatePluginCommand) {
     }
     if let Some(value) = command.source.as_ref() {
         record.source = Some(value.clone());
+    }
+    if let Some(value) = command.marketplace_metadata.as_ref() {
+        record.marketplace_metadata = Some(value.clone());
     }
     if let Some(value) = command.install_status {
         record.install_status = value;

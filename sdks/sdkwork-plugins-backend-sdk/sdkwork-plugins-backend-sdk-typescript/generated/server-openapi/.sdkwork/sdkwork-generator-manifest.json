@@ -92,7 +92,7 @@
     },
     {
       "path": "src/types/create-plugin-command.ts",
-      "sha256": "ebd8dcdb239d4771a64864ad27830927c8c1422acd44a170226252d5ea46583d"
+      "sha256": "900f8a4d41e4e5ab9d2a62d6e3ce46601879019fc70ddc14200c91efdd7fcd92"
     },
     {
       "path": "src/types/field-error.ts",
@@ -100,7 +100,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "72676aa002002a131ea56a7495103331b0f4904205a3d0aa0de6ab94c3f38a59"
+      "sha256": "e006b9ae9535259799bb3fed63a8865629ba5af6c6e0d0e23755f583976957d2"
     },
     {
       "path": "src/types/page-info.ts",
@@ -127,8 +127,20 @@
       "sha256": "9749fb29c8cb91df23cf550437905a3055876070549ace7afd0ddf752c0665b8"
     },
     {
+      "path": "src/types/plugin-install-target.ts",
+      "sha256": "ae49f366dc8187fbf69d97bda5c3256a966c59d0f98896033e260ab4f302b0c8"
+    },
+    {
+      "path": "src/types/plugin-marketplace-metadata.ts",
+      "sha256": "bedd44c0f40d3d70bf996318ec1c3d05bff15cfd6bbde437e2b05d6b67b2536e"
+    },
+    {
+      "path": "src/types/plugin-media.ts",
+      "sha256": "ec24ff0c3f46068ab08a9d214223229cdb58df3d3f2d050b43110452aa9f04e0"
+    },
+    {
       "path": "src/types/plugin-record.ts",
-      "sha256": "95aed22d16650ac13d24e72588a3c55c11bcb61883feb5b722fdecdc5da8ea21"
+      "sha256": "5c6a1571c1f98c50f8c04a0d7b1b21ccc902a9b84af32e880b7696b9572d1f0e"
     },
     {
       "path": "src/types/plugins-admin-create-response201.ts",
@@ -164,7 +176,7 @@
     },
     {
       "path": "src/types/update-plugin-command.ts",
-      "sha256": "e615266994232da90c6df54e5923ed6b06b9ab7737c51954a27f38e59bf2d37f"
+      "sha256": "0a2baf0ee2605be1e9b2de60d21659be4d5e96b390f01252caf0c2dba93c39bc"
     },
     {
       "path": "src/types/upsert-plugin-category-command.ts",

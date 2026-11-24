@@ -73,7 +73,8 @@ SET is_featured = TRUE,
         WHEN 'code-reviewer' THEN '{"zh-CN":"按仓库规范审查改动，输出可执行的修复建议与风险清单。","en-US":"Review changes against repository rules and return actionable fixes with a risk list."}'::jsonb
         WHEN 'web-search' THEN '{"zh-CN":"实时检索网页与新闻，返回带来源引用的结果摘要。","en-US":"Search the web and news in real time, with cited result summaries."}'::jsonb
     END
-WHERE plugin_key IN ('code-reviewer', 'web-search')
+WHERE tenant_id = 100001
+  AND plugin_key IN ('code-reviewer', 'web-search')
   AND is_featured = FALSE
   AND featured_order = 0
   AND featured_title_locales_json = '{}'::jsonb
