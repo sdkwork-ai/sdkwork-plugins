@@ -5,7 +5,7 @@ crate manifests and handlers exactly.
 
 | Authority | Path | Surface |
 |-----------|------|---------|
-| App (marketplace, read-only) | `app-api/plugins/plugins-app-api.openapi.json` | `/app/v3/api/*` |
+| App (marketplace catalog) | `app-api/plugins/plugins-app-api.openapi.json` | `/app/v3/api/*` |
 | Backend (admin) | `backend-api/plugins/plugins-backend-api.openapi.json` | `/backend/v3/api/*` |
 
 ## Backend routes (tag `plugins-admin`)
@@ -27,8 +27,11 @@ crate manifests and handlers exactly.
 | GET | `/app/v3/api/plugins/{pluginKey}` | `plugins.retrieve` | `plugins.marketplace.read` | 200 `data.item` |
 | GET | `/app/v3/api/plugin_categories` | `plugins.listCategories` | `plugins.marketplace.read` | 200 `data.items` + `data.pageInfo` |
 
-`plugins.marketplace.install` is declared in the permission inventory for the
-future install lifecycle command surface; no route carries it yet.
+The catalog record includes localized copy, icon and featured-card media,
+featured ordering and a usage count. The count is a catalog statistic and is
+not a per-user install record. `plugins.marketplace.install` remains reserved
+in the permission inventory until the user-scoped install lifecycle has an
+authoritative runtime target and persistence contract.
 
 ## Wire contract
 
@@ -36,6 +39,14 @@ future install lifecycle command surface; no route carries it yet.
   (`API_SPEC.md` section 4.5). Errors: HTTP 4xx/5xx `application/problem+json`.
 - All list routes accept `SdkWorkListQuery`: `page` (default 1), `page_size`
   (default 20, max 200), `q` (free-text), `cursor` (rejected: offset only).
+- The App marketplace plugin list accepts `featured_only=true` to return only
+  featured plugins ordered by configured featured order, then usage count and
+  plugin key, before pagination. Visibility, category and role filters still
+  apply.
+- The App marketplace plugin list accepts `sort=updated_at_desc` or
+  `sort=usage_count_desc`. Omitting `sort` preserves the existing newest-first
+  order. Usage-count sorting is applied before pagination. When
+  `featured_only=true`, featured ordering takes precedence.
 - The two catalog list routes (`GET /app/v3/api/plugins` and
   `GET /backend/v3/api/plugins`) additionally accept the catalog view filters:
   - `category_code` — one `ai_plugin_category.category_code`; omitted or `all`

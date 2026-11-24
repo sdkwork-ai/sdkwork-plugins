@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sdkwork_id_core::SnowflakeIdGenerator;
-use sdkwork_intelligence_plugins_service::{PluginsRepository, PluginsResult};
+use sdkwork_intelligence_plugins_service::{PluginCatalogSort, PluginsRepository, PluginsResult};
 use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::CatalogViewFilter;
 use sqlx::PgPool;
@@ -126,6 +126,8 @@ impl PluginsRepository for SqlxPluginsRepository {
         organization_id: u64,
         user_id: u64,
         filter: &CatalogViewFilter,
+        featured_only: bool,
+        sort: PluginCatalogSort,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
@@ -136,6 +138,8 @@ impl PluginsRepository for SqlxPluginsRepository {
             organization_id,
             user_id,
             filter,
+            featured_only,
+            sort,
             keyword,
             limit,
             offset,

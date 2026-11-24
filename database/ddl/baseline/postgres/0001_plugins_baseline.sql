@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS ai_plugin_category (
     category_code VARCHAR(128) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    name_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    description_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     sort_order INTEGER NOT NULL DEFAULT 0,
     lifecycle_status SMALLINT NOT NULL DEFAULT 1,
     version BIGINT NOT NULL DEFAULT 0,
@@ -22,7 +24,9 @@ CREATE TABLE IF NOT EXISTS ai_plugin_category (
     updated_by BIGINT NOT NULL DEFAULT 0,
     deleted_at TIMESTAMPTZ,
     UNIQUE (uuid),
-    UNIQUE (tenant_id, category_code)
+    UNIQUE (tenant_id, category_code),
+    CONSTRAINT ck_ai_plugin_category_name_locales_object CHECK (jsonb_typeof(name_locales_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_category_description_locales_object CHECK (jsonb_typeof(description_locales_json) = 'object')
 );
 
 CREATE TABLE IF NOT EXISTS ai_plugin (
@@ -34,6 +38,15 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     plugin_key VARCHAR(128) NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    name_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    description_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    icon_url TEXT,
+    usage_count BIGINT NOT NULL DEFAULT 0,
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+    featured_order INTEGER NOT NULL DEFAULT 0,
+    featured_title_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    featured_description_locales_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    featured_image_url TEXT,
     category_id BIGINT,
     category_code VARCHAR(128),
     version_label VARCHAR(64) NOT NULL DEFAULT '0.0.1',
@@ -54,6 +67,11 @@ CREATE TABLE IF NOT EXISTS ai_plugin (
     deleted_at TIMESTAMPTZ,
     UNIQUE (uuid),
     UNIQUE (tenant_id, plugin_key),
+    CONSTRAINT ck_ai_plugin_usage_count_nonnegative CHECK (usage_count >= 0),
+    CONSTRAINT ck_ai_plugin_name_locales_object CHECK (jsonb_typeof(name_locales_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_description_locales_object CHECK (jsonb_typeof(description_locales_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_featured_title_locales_object CHECK (jsonb_typeof(featured_title_locales_json) = 'object'),
+    CONSTRAINT ck_ai_plugin_featured_description_locales_object CHECK (jsonb_typeof(featured_description_locales_json) = 'object'),
     CONSTRAINT ck_ai_plugin_source
         CHECK (source_json IS NULL OR jsonb_typeof(source_json) = 'object'),
     CONSTRAINT ck_ai_plugin_source_kind
@@ -66,6 +84,9 @@ CREATE INDEX IF NOT EXISTS idx_ai_plugin_tenant
     ON ai_plugin (tenant_id, lifecycle_status);
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_ref
     ON ai_plugin (tenant_id, category_id);
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_catalog_featured
+    ON ai_plugin (tenant_id, is_featured DESC, featured_order ASC, usage_count DESC)
+    WHERE lifecycle_status = 1 AND deleted_at IS NULL;
 
 -- folded migration: migrations/postgres/0002_plugin_artifact_sources.up.sql
 -- sdkwork:migration

@@ -92,7 +92,7 @@
     },
     {
       "path": "src/types/create-plugin-command.ts",
-      "sha256": "c091dd2acd24c9e87c43c1a97cca2d5dcec69bb628bbc5890d639c9df1fc33a2"
+      "sha256": "ebd8dcdb239d4771a64864ad27830927c8c1422acd44a170226252d5ea46583d"
     },
     {
       "path": "src/types/field-error.ts",
@@ -124,11 +124,11 @@
     },
     {
       "path": "src/types/plugin-category-record.ts",
-      "sha256": "feb6146bd7b9ef8a596f68e3f9f2d5d668c2bb5e18c43b940318e922279c70a8"
+      "sha256": "9749fb29c8cb91df23cf550437905a3055876070549ace7afd0ddf752c0665b8"
     },
     {
       "path": "src/types/plugin-record.ts",
-      "sha256": "1818e4ca6c51efb400c87c687a4a7f1f0fd6696668dc7c7d7a32d2c4293791d1"
+      "sha256": "95aed22d16650ac13d24e72588a3c55c11bcb61883feb5b722fdecdc5da8ea21"
     },
     {
       "path": "src/types/plugins-admin-create-response201.ts",
@@ -164,7 +164,7 @@
     },
     {
       "path": "src/types/update-plugin-command.ts",
-      "sha256": "91eba2ebbd90007df86c050939f6c1ee5409887692216a16609cd18264c48c4a"
+      "sha256": "e615266994232da90c6df54e5923ed6b06b9ab7737c51954a27f38e59bf2d37f"
     },
     {
       "path": "src/types/upsert-plugin-category-command.ts",

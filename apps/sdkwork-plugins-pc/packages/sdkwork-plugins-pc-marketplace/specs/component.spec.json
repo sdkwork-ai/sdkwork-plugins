@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-plugins-pc-marketplace",
+    "displayName": "SDKWork Plugins PC Marketplace",
+    "version": "0.1.0",
+    "type": "frontend-feature",
+    "root": "apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace",
+    "domain": "intelligence",
+    "capability": "plugins-marketplace",
+    "surface": "app",
+    "languages": ["typescript"],
+    "generated": false,
+    "manifests": ["package.json"]
+  },
+  "canonicalSpecs": [
+    {
+      "file": "CODE_STYLE_SPEC.md",
+      "path": "../../../../../sdkwork-specs/CODE_STYLE_SPEC.md",
+      "purpose": "Authored source organization and test boundaries."
+    },
+    {
+      "file": "NAMING_SPEC.md",
+      "path": "../../../../../sdkwork-specs/NAMING_SPEC.md",
+      "purpose": "SDKWork package and component naming."
+    },
+    {
+      "file": "APP_PC_ARCHITECTURE_SPEC.md",
+      "path": "../../../../../sdkwork-specs/APP_PC_ARCHITECTURE_SPEC.md",
+      "purpose": "PC application package placement and surface boundaries."
+    },
+    {
+      "file": "APP_PC_REACT_UI_SPEC.md",
+      "path": "../../../../../sdkwork-specs/APP_PC_REACT_UI_SPEC.md",
+      "purpose": "PC React UI, SDK injection, and interaction requirements."
+    },
+    {
+      "file": "FRONTEND_SPEC.md",
+      "path": "../../../../../sdkwork-specs/FRONTEND_SPEC.md",
+      "purpose": "Frontend layering and SDK client usage."
+    },
+    {
+      "file": "I18N_SPEC.md",
+      "path": "../../../../../sdkwork-specs/I18N_SPEC.md",
+      "purpose": "Feature-owned locale fragments and injected locale selection."
+    },
+    {
+      "file": "TEST_SPEC.md",
+      "path": "../../../../../sdkwork-specs/TEST_SPEC.md",
+      "purpose": "Frontend service and UI integration verification."
+    }
+  ],
+  "contracts": {
+    "layerRole": "frontend-feature",
+    "publicExports": ["."],
+    "providedPorts": [],
+    "requiredPorts": ["MarketplaceAppClient"],
+    "sdkClients": [],
+    "sdkDependencies": ["sdkwork-plugins-app-sdk"],
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [],
+    "configKeys": []
+  },
+  "verification": {
+    "commands": [
+      "pnpm --dir apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace typecheck",
+      "pnpm --dir apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace test"
+    ]
+  }
+}

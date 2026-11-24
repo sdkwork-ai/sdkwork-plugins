@@ -4,6 +4,10 @@ use crate::enums::{
     PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus, PluginVisibility,
 };
 
+fn empty_json_object() -> serde_json::Value {
+    serde_json::json!({})
+}
+
 /// Where a managed plugin's package content comes from.
 ///
 /// Mirrors the Skills artifact-source contract so the admin surfaces stay
@@ -54,6 +58,12 @@ pub struct PluginCategoryRecord {
     pub category_code: String,
     pub name: String,
     pub description: Option<String>,
+    /// Locale-specific display names keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub name_locales: serde_json::Value,
+    /// Locale-specific descriptions keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub description_locales: serde_json::Value,
     pub sort_order: i32,
     pub lifecycle_status: PluginLifecycleStatus,
     #[serde(with = "sdkwork_utils_rust::serde_int64")]
@@ -85,6 +95,33 @@ pub struct PluginRecord {
     pub plugin_key: String,
     pub name: String,
     pub description: Option<String>,
+    /// Locale-specific display names keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub name_locales: serde_json::Value,
+    /// Locale-specific descriptions keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub description_locales: serde_json::Value,
+    /// Plugin icon resolved through the SDKWork media surface.
+    #[serde(default)]
+    pub icon_url: Option<String>,
+    /// Catalog usage count used for popularity ranking and display.
+    #[serde(default, with = "sdkwork_utils_rust::serde_uint64")]
+    pub usage_count: u64,
+    /// Whether this plugin is eligible for featured placement.
+    #[serde(default)]
+    pub featured: bool,
+    /// Lower values appear first among featured plugins.
+    #[serde(default)]
+    pub featured_order: i32,
+    /// Locale-specific featured card title keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub featured_title_locales: serde_json::Value,
+    /// Locale-specific featured card description keyed by BCP-47 locale.
+    #[serde(default = "empty_json_object")]
+    pub featured_description_locales: serde_json::Value,
+    /// Featured card artwork resolved through the SDKWork media surface.
+    #[serde(default)]
+    pub featured_image_url: Option<String>,
     #[serde(with = "sdkwork_utils_rust::serde_int64::option")]
     pub category_id: Option<i64>,
     pub category_code: Option<String>,

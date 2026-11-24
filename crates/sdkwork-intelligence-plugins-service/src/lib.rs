@@ -28,6 +28,13 @@ pub enum PluginsServiceError {
 
 pub type PluginsResult<T> = Result<T, PluginsServiceError>;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PluginCatalogSort {
+    #[default]
+    UpdatedAtDesc,
+    UsageCountDesc,
+}
+
 /// Persistence contract for plugin categories and plugins. Tenant and operator
 /// identities are explicit parameters: the wire records stay projection-only.
 #[async_trait]
@@ -106,13 +113,15 @@ pub trait PluginsRepository: Send + Sync {
 
     /// Paged catalog-visible plugins; the total is the filtered, visible row
     /// count so `pageInfo.totalItems` never counts admin-only or out-of-scope
-    /// rows.
+    /// rows. `featured_only` narrows the same filtered set before pagination.
     async fn list_catalog_plugins_page(
         &self,
         tenant_id: u64,
         organization_id: u64,
         user_id: u64,
         filter: &CatalogViewFilter,
+        featured_only: bool,
+        sort: PluginCatalogSort,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
@@ -260,6 +269,8 @@ impl<R: PluginsRepository> PluginsService<R> {
         organization_id: u64,
         user_id: u64,
         filter: &CatalogViewFilter,
+        featured_only: bool,
+        sort: PluginCatalogSort,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
@@ -270,6 +281,8 @@ impl<R: PluginsRepository> PluginsService<R> {
                 organization_id,
                 user_id,
                 filter,
+                featured_only,
+                sort,
                 keyword,
                 limit,
                 offset,

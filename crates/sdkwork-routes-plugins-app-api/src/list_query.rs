@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+use sdkwork_intelligence_plugins_service::PluginCatalogSort;
 use sdkwork_utils_rust::{CatalogViewFilter, CatalogViewQuery};
 
 use crate::response::ApiProblem;
@@ -20,6 +21,9 @@ pub struct SdkWorkListQuery {
     pub page_size: Option<i32>,
     pub cursor: Option<String>,
     pub q: Option<String>,
+    #[serde(default)]
+    pub featured_only: bool,
+    pub sort: Option<String>,
     /// The shared catalog view vocabulary: one registry category code (`all`
     /// keeps every category) plus the caller's comma-separated IAM role codes.
     #[serde(flatten)]
@@ -73,6 +77,16 @@ impl SdkWorkListQuery {
     /// Normalized catalog view: the default keeps every category and role.
     pub fn catalog_filter(&self) -> CatalogViewFilter {
         self.catalog.to_filter()
+    }
+
+    pub fn plugin_sort(&self) -> Result<PluginCatalogSort, ApiProblem> {
+        match self.sort.as_deref() {
+            None | Some("updated_at_desc") => Ok(PluginCatalogSort::UpdatedAtDesc),
+            Some("usage_count_desc") => Ok(PluginCatalogSort::UsageCountDesc),
+            Some(value) => Err(ApiProblem::invalid_parameter(format!(
+                "sort must be one of updated_at_desc, usage_count_desc (received {value})"
+            ))),
+        }
     }
 }
 
@@ -181,15 +195,31 @@ mod tests {
 
     #[test]
     fn wire_form_parses_through_the_dto() {
-        let query: SdkWorkListQuery =
-            serde_urlencoded::from_str("category_code=all&role_codes=org_admin,org_auditor")
-                .expect("list query parses");
+        let query: SdkWorkListQuery = serde_urlencoded::from_str(
+            "category_code=all&role_codes=org_admin,org_auditor&featured_only=true&sort=usage_count_desc",
+        )
+        .expect("list query parses");
         assert_eq!(query.page, None);
+        assert!(query.featured_only);
+        assert_eq!(query.plugin_sort().unwrap(), PluginCatalogSort::UsageCountDesc);
         let filter = query.catalog_filter();
         assert_eq!(filter.category_code(), None);
         assert_eq!(
             filter.role_codes(),
             ["org_admin".to_string(), "org_auditor".to_string()].as_slice()
         );
+    }
+
+    #[test]
+    fn default_catalog_sort_is_unchanged_and_unknown_sort_is_rejected() {
+        assert_eq!(
+            SdkWorkListQuery::default().plugin_sort().unwrap(),
+            PluginCatalogSort::UpdatedAtDesc
+        );
+        let query = SdkWorkListQuery {
+            sort: Some("random".to_string()),
+            ..Default::default()
+        };
+        assert!(query.plugin_sort().is_err());
     }
 }

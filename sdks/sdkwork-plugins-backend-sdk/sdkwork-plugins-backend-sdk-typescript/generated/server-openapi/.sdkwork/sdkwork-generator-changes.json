@@ -9,12 +9,10 @@
     "protocol": "http",
     "packageName": "sdkwork-plugins-backend-sdk-generated-typescript"
   },
-  "changeFingerprint": "dbd0f1c94c0dfa797878abf5c0548cf41deb46dec5c587ba08c81cd505afa0af",
+  "changeFingerprint": "408b5c04deebf94fd7d983b2af32091aedc499faef500f4e3e273ef92329e5c3",
   "changes": {
     "createdGeneratedFiles": [],
-    "updatedGeneratedFiles": [
-      "src/types/plugin-record.ts"
-    ],
+    "updatedGeneratedFiles": [],
     "unchangedGeneratedFiles": [
       "bin/publish-core.mjs",
       "bin/publish.ps1",
@@ -45,6 +43,7 @@
       "src/types/plugin-artifact-git-source.ts",
       "src/types/plugin-artifact-source.ts",
       "src/types/plugin-category-record.ts",
+      "src/types/plugin-record.ts",
       "src/types/plugins-admin-create-response201.ts",
       "src/types/plugins-admin-list-categories-response.ts",
       "src/types/plugins-admin-list-response.ts",
@@ -67,72 +66,26 @@
   },
   "impact": {
     "schemaVersion": 1,
-    "areas": [
-      "models"
-    ],
-    "details": [
-      {
-        "area": "models",
-        "paths": [
-          "src/types/plugin-record.ts"
-        ]
-      }
-    ],
-    "requiresVerification": true,
-    "summary": "Detected impact areas: models. Verification is required."
+    "areas": [],
+    "details": [],
+    "requiresVerification": false,
+    "summary": "No generated, scaffold, or backup changes detected. Verification can be skipped."
   },
   "verificationPlan": {
-    "shouldRun": true,
-    "runPhase": "now",
-    "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
-    "steps": [
-      {
-        "id": "check",
-        "title": "Unified package check",
-        "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
-        "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
-        "command": "node",
-        "args": [
-          "./bin/publish-core.mjs",
-          "--language",
-          "typescript",
-          "--project-dir",
-          ".",
-          "--action",
-          "check"
-        ],
-        "displayCommand": "node ./bin/publish-core.mjs --language typescript --project-dir . --action check"
-      },
-      {
-        "id": "build",
-        "title": "Unified package build",
-        "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
-        "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
-        "command": "node",
-        "args": [
-          "./bin/publish-core.mjs",
-          "--language",
-          "typescript",
-          "--project-dir",
-          ".",
-          "--action",
-          "build"
-        ],
-        "displayCommand": "node ./bin/publish-core.mjs --language typescript --project-dir . --action build"
-      }
-    ]
+    "shouldRun": false,
+    "runPhase": "skip",
+    "summary": "No generated, scaffold, or backup changes detected. Verification can be skipped.",
+    "steps": []
   },
   "executionDecision": {
     "schemaVersion": 1,
-    "riskLevel": "medium",
-    "nextAction": "verify",
+    "riskLevel": "low",
+    "nextAction": "skip",
     "requiresManualReview": false,
     "applyRequiresExpectedFingerprint": false,
-    "summary": "Changes have been applied. Run the required verification plan now.",
+    "summary": "No actionable changes were detected. No apply or verification step is required.",
     "reasons": [
-      "verification-required"
+      "no-actionable-changes"
     ]
   },
   "preservedLegacyFiles": false

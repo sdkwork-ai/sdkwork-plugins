@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use async_trait::async_trait;
 
 use sdkwork_plugins_contract::{
     PluginCategoryRecord, PluginLifecycleStatus, PluginRecord, PluginVisibility,
 };
-use sdkwork_utils_rust::{uuid, CatalogViewFilter};
+use sdkwork_utils_rust::{CatalogViewFilter, uuid};
 
-use crate::{PluginsRepository, PluginsResult, PluginsServiceError};
+use crate::{PluginCatalogSort, PluginsRepository, PluginsResult, PluginsServiceError};
 
 fn map_poison<T>(_: T) -> PluginsServiceError {
     PluginsServiceError::Repository("in-memory plugins registry lock poisoned".to_string())
@@ -31,6 +31,16 @@ fn contains_keyword(value: &str, keyword: &str) -> bool {
     value.to_lowercase().contains(keyword)
 }
 
+fn localized_values_match(values: &serde_json::Value, keyword: &str) -> bool {
+    values.as_object().is_some_and(|entries| {
+        entries.values().any(|value| {
+            value
+                .as_str()
+                .is_some_and(|text| contains_keyword(text, keyword))
+        })
+    })
+}
+
 fn category_in_view(
     record: &PluginCategoryRecord,
     filter: &CatalogViewFilter,
@@ -47,6 +57,8 @@ fn category_in_view(
     contains_keyword(&record.name, &keyword)
         || contains_keyword(&record.category_code, &keyword)
         || contains_keyword(record.description.as_deref().unwrap_or(""), &keyword)
+        || localized_values_match(&record.name_locales, &keyword)
+        || localized_values_match(&record.description_locales, &keyword)
 }
 
 fn plugin_in_view(
@@ -69,6 +81,8 @@ fn plugin_in_view(
             .tags
             .iter()
             .any(|tag| contains_keyword(tag, &keyword))
+        || localized_values_match(&record.name_locales, &keyword)
+        || localized_values_match(&record.description_locales, &keyword)
 }
 
 /// Extracts one page from an already ordered, already filtered collection and
@@ -273,6 +287,8 @@ impl PluginsRepository for InMemoryPluginRepository {
         organization_id: u64,
         user_id: u64,
         filter: &CatalogViewFilter,
+        featured_only: bool,
+        sort: PluginCatalogSort,
         keyword: Option<&str>,
         limit: i64,
         offset: i64,
@@ -282,8 +298,33 @@ impl PluginsRepository for InMemoryPluginRepository {
             .await?;
         let filtered = records
             .into_iter()
+            .filter(|record| !featured_only || record.featured)
             .filter(|record| plugin_in_view(record, filter, keyword))
-            .collect();
+            .collect::<Vec<_>>();
+        let filtered = if featured_only {
+            let mut sorted = filtered;
+            sorted.sort_by(|left, right| {
+                left.featured_order
+                    .cmp(&right.featured_order)
+                    .then_with(|| right.usage_count.cmp(&left.usage_count))
+                    .then_with(|| left.plugin_key.cmp(&right.plugin_key))
+            });
+            sorted
+        } else {
+            match sort {
+                PluginCatalogSort::UpdatedAtDesc => filtered,
+                PluginCatalogSort::UsageCountDesc => {
+                    let mut sorted = filtered;
+                    sorted.sort_by(|left, right| {
+                        right
+                            .usage_count
+                            .cmp(&left.usage_count)
+                            .then_with(|| left.plugin_key.cmp(&right.plugin_key))
+                    });
+                    sorted
+                }
+            }
+        };
         Ok(slice_page(filtered, limit, offset))
     }
 

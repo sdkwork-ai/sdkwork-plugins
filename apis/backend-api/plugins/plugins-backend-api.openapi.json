@@ -963,7 +963,9 @@
           "lifecycleStatus",
           "version",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "nameLocales",
+          "descriptionLocales"
         ],
         "properties": {
           "id": {
@@ -1013,6 +1015,22 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized descriptions keyed by BCP-47 locale."
           }
         }
       },
@@ -1036,7 +1054,16 @@
           "status",
           "version",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "nameLocales",
+          "descriptionLocales",
+          "iconUrl",
+          "usageCount",
+          "featured",
+          "featuredOrder",
+          "featuredTitleLocales",
+          "featuredDescriptionLocales",
+          "featuredImageUrl"
         ],
         "properties": {
           "id": {
@@ -1175,6 +1202,70 @@
           },
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized descriptions keyed by BCP-47 locale."
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plugin icon URL resolved through SDKWork media."
+          },
+          "usageCount": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Usage count used for catalog ranking and display."
+          },
+          "featured": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the plugin is eligible for featured placement."
+          },
+          "featuredOrder": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0,
+            "description": "Lower values appear first among featured plugins."
+          },
+          "featuredTitleLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card titles keyed by BCP-47 locale."
+          },
+          "featuredDescriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card descriptions keyed by BCP-47 locale."
+          },
+          "featuredImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Featured-card image URL resolved through SDKWork media."
           }
         }
       },
@@ -1288,6 +1379,63 @@
           },
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized descriptions keyed by BCP-47 locale."
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plugin icon URL resolved through SDKWork media."
+          },
+          "featured": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the plugin is eligible for featured placement."
+          },
+          "featuredOrder": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0,
+            "description": "Lower values appear first among featured plugins."
+          },
+          "featuredTitleLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card titles keyed by BCP-47 locale."
+          },
+          "featuredDescriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card descriptions keyed by BCP-47 locale."
+          },
+          "featuredImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Featured-card image URL resolved through SDKWork media."
           }
         }
       },
@@ -1378,6 +1526,57 @@
           },
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Localized descriptions keyed by BCP-47 locale."
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plugin icon URL resolved through SDKWork media."
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "Whether the plugin is eligible for featured placement."
+          },
+          "featuredOrder": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lower values appear first among featured plugins."
+          },
+          "featuredTitleLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Localized featured-card titles keyed by BCP-47 locale."
+          },
+          "featuredDescriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Localized featured-card descriptions keyed by BCP-47 locale."
+          },
+          "featuredImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Featured-card image URL resolved through SDKWork media."
           }
         }
       },

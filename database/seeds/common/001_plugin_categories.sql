@@ -13,6 +13,8 @@ INSERT INTO ai_plugin_category (
     category_code,
     name,
     description,
+    name_locales_json,
+    description_locales_json,
     sort_order,
     lifecycle_status
 )
@@ -25,6 +27,8 @@ VALUES
         'code-development',
         '代码与开发',
         '代码生成、审查、重构与开发工具插件',
+        '{"zh-CN":"代码与开发","en-US":"Code and Development"}'::jsonb,
+        '{"zh-CN":"代码生成、审查、重构与开发工具插件","en-US":"Plugins for code generation, review, refactoring, and development."}'::jsonb,
         10,
         1
     ),
@@ -36,6 +40,8 @@ VALUES
         'data-retrieval',
         '数据检索',
         '搜索、检索与信息聚合插件',
+        '{"zh-CN":"数据检索","en-US":"Data Retrieval"}'::jsonb,
+        '{"zh-CN":"搜索、检索与信息聚合插件","en-US":"Plugins for search, retrieval, and information aggregation."}'::jsonb,
         20,
         1
     ),
@@ -47,6 +53,8 @@ VALUES
         'document-processing',
         '文档处理',
         '文档解析、转换与内容处理插件',
+        '{"zh-CN":"文档处理","en-US":"Document Processing"}'::jsonb,
+        '{"zh-CN":"文档解析、转换与内容处理插件","en-US":"Plugins for document parsing, conversion, and content processing."}'::jsonb,
         30,
         1
     ),
@@ -58,6 +66,8 @@ VALUES
         'database-apps',
         '数据库应用',
         '数据库连接、查询与数据管理插件',
+        '{"zh-CN":"数据库应用","en-US":"Database Applications"}'::jsonb,
+        '{"zh-CN":"数据库连接、查询与数据管理插件","en-US":"Plugins for database connections, queries, and data management."}'::jsonb,
         40,
         1
     ),
@@ -69,6 +79,8 @@ VALUES
         'image-processing',
         '图像处理',
         '图像识别、生成与处理插件',
+        '{"zh-CN":"图像处理","en-US":"Image Processing"}'::jsonb,
+        '{"zh-CN":"图像识别、生成与处理插件","en-US":"Plugins for image recognition, generation, and processing."}'::jsonb,
         50,
         1
     ),
@@ -80,6 +92,8 @@ VALUES
         'business-apps',
         '商业应用',
         '支付、电商与商业流程插件',
+        '{"zh-CN":"商业应用","en-US":"Business Applications"}'::jsonb,
+        '{"zh-CN":"支付、电商与商业流程插件","en-US":"Plugins for payments, commerce, and business workflows."}'::jsonb,
         60,
         1
     )

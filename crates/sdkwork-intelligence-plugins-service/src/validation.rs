@@ -190,12 +190,21 @@ fn validate_artifact_source(source: &PluginArtifactSource) -> PluginsResult<()> 
 
 pub fn validate_category_record(record: &PluginCategoryRecord) -> PluginsResult<()> {
     validate_category_code(record.category_code.as_str())?;
-    require_name(record.name.as_str(), "category name")
+    require_name(record.name.as_str(), "category name")?;
+    validate_localized_map("name_locales", &record.name_locales)?;
+    validate_localized_map("description_locales", &record.description_locales)
 }
 
 pub fn validate_plugin_record(record: &PluginRecord) -> PluginsResult<()> {
     validate_plugin_key(record.plugin_key.as_str())?;
     require_name(record.name.as_str(), "name")?;
+    validate_localized_map("name_locales", &record.name_locales)?;
+    validate_localized_map("description_locales", &record.description_locales)?;
+    validate_localized_map("featured_title_locales", &record.featured_title_locales)?;
+    validate_localized_map(
+        "featured_description_locales",
+        &record.featured_description_locales,
+    )?;
     if is_blank(Some(trim(record.version_label.as_str()).as_str())) {
         return Err(PluginsServiceError::InvalidArgument(
             "version_label must not be empty".to_string(),
@@ -262,12 +271,16 @@ pub fn category_record_from_command(
     operator_id: u64,
     command: &UpsertPluginCategoryCommand,
 ) -> PluginsResult<PluginCategoryRecord> {
+    validate_localized_map("name_locales", &command.name_locales)?;
+    validate_localized_map("description_locales", &command.description_locales)?;
     let record = PluginCategoryRecord {
         id: 0,
         uuid: String::new(),
         category_code: trim(command.category_code.as_str()),
         name: trim(command.name.as_str()),
         description: command.description.clone(),
+        name_locales: command.name_locales.clone(),
+        description_locales: command.description_locales.clone(),
         sort_order: command.sort_order.unwrap_or(0),
         lifecycle_status: PluginLifecycleStatus::Active,
         version: 0,
@@ -285,6 +298,13 @@ pub fn plugin_record_from_create(
     operator_id: u64,
     command: &CreatePluginCommand,
 ) -> PluginsResult<PluginRecord> {
+    validate_localized_map("name_locales", &command.name_locales)?;
+    validate_localized_map("description_locales", &command.description_locales)?;
+    validate_localized_map("featured_title_locales", &command.featured_title_locales)?;
+    validate_localized_map(
+        "featured_description_locales",
+        &command.featured_description_locales,
+    )?;
     let record = PluginRecord {
         id: 0,
         uuid: String::new(),
@@ -297,6 +317,15 @@ pub fn plugin_record_from_create(
         plugin_key: trim(command.plugin_key.as_str()),
         name: trim(command.name.as_str()),
         description: command.description.clone(),
+        name_locales: command.name_locales.clone(),
+        description_locales: command.description_locales.clone(),
+        icon_url: command.icon_url.clone(),
+        usage_count: 0,
+        featured: command.featured,
+        featured_order: command.featured_order,
+        featured_title_locales: command.featured_title_locales.clone(),
+        featured_description_locales: command.featured_description_locales.clone(),
+        featured_image_url: command.featured_image_url.clone(),
         category_id: command.category_id,
         category_code: command
             .category_code
@@ -339,6 +368,22 @@ pub fn validate_update_command(command: &UpdatePluginCommand) -> PluginsResult<(
     if let Some(name) = command.name.as_deref() {
         require_name(name, "name")?;
     }
+    for (field, value) in [
+        ("name_locales", command.name_locales.as_ref()),
+        ("description_locales", command.description_locales.as_ref()),
+        (
+            "featured_title_locales",
+            command.featured_title_locales.as_ref(),
+        ),
+        (
+            "featured_description_locales",
+            command.featured_description_locales.as_ref(),
+        ),
+    ] {
+        if let Some(value) = value {
+            validate_localized_map(field, value)?;
+        }
+    }
     if let Some(manifest) = command.manifest.as_ref() {
         validate_manifest(manifest)?;
     }
@@ -364,6 +409,30 @@ pub fn apply_update(record: &mut PluginRecord, command: &UpdatePluginCommand) {
     }
     if let Some(value) = command.description.as_ref() {
         record.description = Some(value.clone());
+    }
+    if let Some(value) = command.name_locales.as_ref() {
+        record.name_locales = value.clone();
+    }
+    if let Some(value) = command.description_locales.as_ref() {
+        record.description_locales = value.clone();
+    }
+    if let Some(value) = command.icon_url.as_ref() {
+        record.icon_url = normalized_optional_text(value);
+    }
+    if let Some(value) = command.featured {
+        record.featured = value;
+    }
+    if let Some(value) = command.featured_order {
+        record.featured_order = value;
+    }
+    if let Some(value) = command.featured_title_locales.as_ref() {
+        record.featured_title_locales = value.clone();
+    }
+    if let Some(value) = command.featured_description_locales.as_ref() {
+        record.featured_description_locales = value.clone();
+    }
+    if let Some(value) = command.featured_image_url.as_ref() {
+        record.featured_image_url = normalized_optional_text(value);
     }
     if let Some(value) = command.category_id {
         record.category_id = Some(value);
@@ -414,6 +483,28 @@ pub fn apply_update(record: &mut PluginRecord, command: &UpdatePluginCommand) {
     if let Some(value) = command.lifecycle_status {
         record.lifecycle_status = value;
     }
+}
+
+fn normalized_optional_text(value: &str) -> Option<String> {
+    let normalized = value.trim();
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized.to_string())
+    }
+}
+
+fn validate_localized_map(field: &str, value: &serde_json::Value) -> PluginsResult<()> {
+    if !value.is_object()
+        || value
+            .as_object()
+            .is_some_and(|entries| entries.values().any(|entry| !entry.is_string()))
+    {
+        return Err(PluginsServiceError::InvalidArgument(format!(
+            "{field} must be an object of locale keys to strings"
+        )));
+    }
+    Ok(())
 }
 
 fn normalize_tags(values: &[String]) -> Vec<String> {

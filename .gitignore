@@ -33,3 +33,18 @@ sdks/**/sdkwork-plugins-backend-sdk-typescript/**/*.d.ts.map
 
 # Logs (never commit)
 *.log
+
+# TypeScript compiler output emitted next to the app SDK sources (same rule)
+sdks/**/sdkwork-plugins-app-sdk-typescript/**/*.js
+sdks/**/sdkwork-plugins-app-sdk-typescript/**/*.js.map
+sdks/**/sdkwork-plugins-app-sdk-typescript/**/*.d.ts
+sdks/**/sdkwork-plugins-app-sdk-typescript/**/*.d.ts.map
+sdks/**/.sdkwork/manual-backups/
+
+# Compiled output of the PC marketplace package (sources are .ts/.tsx)
+apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.js
+apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.js.map
+apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.d.ts
+apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.d.ts.map
+!apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/global.d.ts
+!apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/css-modules.d.ts

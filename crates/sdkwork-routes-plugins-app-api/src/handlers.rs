@@ -2,7 +2,7 @@ use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
-use crate::response::{item_data, page_data_from_total, ApiProblem, ApiResult};
+use crate::response::{ApiProblem, ApiResult, item_data, page_data_from_total};
 
 pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
     service: &sdkwork_intelligence_plugins_service::PluginsService<R>,
@@ -23,6 +23,8 @@ pub async fn list_plugins<R: sdkwork_intelligence_plugins_service::PluginsReposi
             organization_id,
             user_id,
             &query.catalog_filter(),
+            query.featured_only,
+            query.plugin_sort()?,
             query.search_keyword(),
             limit,
             offset,
@@ -148,6 +150,15 @@ mod tests {
             plugin_key: key.to_string(),
             name: key.to_string(),
             description: None,
+            name_locales: serde_json::json!({}),
+            description_locales: serde_json::json!({}),
+            icon_url: None,
+            usage_count: 0,
+            featured: false,
+            featured_order: 0,
+            featured_title_locales: serde_json::json!({}),
+            featured_description_locales: serde_json::json!({}),
+            featured_image_url: None,
             category_id: None,
             category_code: category.map(str::to_string),
             version_label: "1.0.0".to_string(),
@@ -254,6 +265,146 @@ mod tests {
         assert!(filtered.is_empty());
     }
 
+    #[tokio::test]
+    async fn featured_filter_runs_before_pagination_and_counts_only_featured_rows() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for (key, featured, featured_order, usage_count) in [
+            ("featured-beta", true, 1, 80),
+            ("ordinary", false, 0, 0),
+            ("featured-later", true, 2, 999),
+            ("featured-popular", true, 1, 90),
+            ("featured-alpha", true, 1, 80),
+        ] {
+            let mut record = plugin(key, Some("code-development"), &[]);
+            record.featured = featured;
+            record.featured_order = featured_order;
+            record.usage_count = usage_count;
+            repository
+                .create_plugin(7, 1, record)
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+        let mut query = paged_query(1, 2, None);
+        query.featured_only = true;
+
+        let first = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("featured page");
+        assert_eq!(
+            keys(&first.items),
+            vec!["featured-popular", "featured-alpha"]
+        );
+        assert_eq!(first.page_info.total_items.as_deref(), Some("4"));
+
+        query.page = Some(2);
+        let second = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("featured page two");
+        assert_eq!(keys(&second.items), vec!["featured-beta", "featured-later"]);
+        assert_eq!(second.page_info.total_items.as_deref(), Some("4"));
+        let mut paged_keys = keys(&first.items)
+            .into_iter()
+            .chain(keys(&second.items))
+            .collect::<Vec<_>>();
+        paged_keys.sort_unstable();
+        assert_eq!(
+            paged_keys,
+            vec![
+                "featured-alpha",
+                "featured-beta",
+                "featured-later",
+                "featured-popular"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn usage_count_sort_runs_before_pagination() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for (key, usage_count) in [("alpha", 12), ("beta", 93), ("gamma", 47)] {
+            let mut record = plugin(key, Some("code-development"), &[]);
+            record.usage_count = usage_count;
+            repository
+                .create_plugin(7, 1, record)
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+        let mut query = paged_query(1, 2, None);
+        query.sort = Some("usage_count_desc".to_string());
+
+        let first = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("popular plugin page");
+        assert_eq!(keys(&first.items), vec!["beta", "gamma"]);
+        assert_eq!(first.page_info.total_items.as_deref(), Some("3"));
+
+        query.page = Some(2);
+        let second = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("popular plugin page two");
+        assert_eq!(keys(&second.items), vec!["alpha"]);
+        assert_eq!(second.page_info.total_items.as_deref(), Some("3"));
+    }
+
+    #[tokio::test]
+    async fn omitted_sort_keeps_newest_first_order() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        for key in ["zulu-older", "alpha-newer"] {
+            repository
+                .create_plugin(7, 1, plugin(key, Some("code-development"), &[]))
+                .await
+                .expect("seed plugin");
+        }
+        let service = PluginsService::new(repository);
+        let query = paged_query(1, 10, None);
+
+        let result = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("newest-first catalog");
+
+        assert_eq!(keys(&result.items), vec!["alpha-newer", "zulu-older"]);
+    }
+
+    #[tokio::test]
+    async fn localized_plugin_copy_is_searchable() {
+        use sdkwork_intelligence_plugins_service::{
+            InMemoryPluginRepository, PluginsRepository, PluginsService,
+        };
+
+        let repository = InMemoryPluginRepository::default();
+        let mut record = plugin("web-search", Some("data-retrieval"), &[]);
+        record.name_locales = serde_json::json!({ "en-US": "Web Search" });
+        record.description_locales = serde_json::json!({ "en-US": "Search current events" });
+        repository
+            .create_plugin(7, 1, record)
+            .await
+            .expect("seed localized plugin");
+        let service = PluginsService::new(repository);
+        let query = SdkWorkListQuery {
+            q: Some("current events".to_string()),
+            ..Default::default()
+        };
+
+        let result = list_plugins(&service, 7, 0, 0, &query)
+            .await
+            .expect("search localized plugin");
+        assert_eq!(keys(&result.items), vec!["web-search"]);
+    }
+
     fn category(code: &str, status: PluginLifecycleStatus) -> PluginCategoryRecord {
         PluginCategoryRecord {
             id: 1,
@@ -261,6 +412,8 @@ mod tests {
             category_code: code.to_string(),
             name: code.to_string(),
             description: None,
+            name_locales: serde_json::json!({}),
+            description_locales: serde_json::json!({}),
             sort_order: 10,
             lifecycle_status: status,
             version: 0,
@@ -473,10 +626,11 @@ mod tests {
             Some("3"),
             "totalItems must count the filtered rows, not every plugin"
         );
-        assert!(page
-            .items
-            .iter()
-            .all(|item| item.category_code.as_deref() == Some("data-retrieval")));
+        assert!(
+            page.items
+                .iter()
+                .all(|item| item.category_code.as_deref() == Some("data-retrieval"))
+        );
     }
 
     #[tokio::test]
@@ -511,10 +665,12 @@ mod tests {
                 .expect("catalog page");
             assert_eq!(result.items.len(), 1);
             assert_eq!(result.page_info.total_items.as_deref(), Some("2"));
-            assert!(result
-                .items
-                .iter()
-                .all(|item| item.lifecycle_status == PluginLifecycleStatus::Active));
+            assert!(
+                result
+                    .items
+                    .iter()
+                    .all(|item| item.lifecycle_status == PluginLifecycleStatus::Active)
+            );
             visible.extend(keys(&result.items).into_iter().map(str::to_string));
         }
         visible.sort_unstable();

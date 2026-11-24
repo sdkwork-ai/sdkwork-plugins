@@ -10,4 +10,8 @@ export interface PluginCategoryRecord {
   version: string;
   createdAt: string;
   updatedAt: string;
+  /** Localized display names keyed by BCP-47 locale. */
+  nameLocales: Record<string, string>;
+  /** Localized descriptions keyed by BCP-47 locale. */
+  descriptionLocales: Record<string, string>;
 }

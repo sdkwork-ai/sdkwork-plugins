@@ -11,6 +11,8 @@ export interface PluginsListParams {
   q?: string;
   categoryCode?: string;
   roleCodes?: string;
+  featuredOnly?: boolean;
+  sort?: 'updated_at_desc' | 'usage_count_desc';
 }
 
 export interface PluginsListCategoriesParams {
@@ -37,6 +39,8 @@ export class PluginsApi {
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'category_code', value: params?.categoryCode, style: 'form', explode: true, allowReserved: false },
       { name: 'role_codes', value: params?.roleCodes, style: 'form', explode: true, allowReserved: false },
+      { name: 'featured_only', value: params?.featuredOnly, style: 'form', explode: true, allowReserved: false },
+      { name: 'sort', value: params?.sort, style: 'form', explode: true, allowReserved: false },
     ]);
     return this.client.request<{ items: PluginRecord[]; pageInfo: PageInfo; }>(appendQueryString(appApiPath(`/plugins`), query), { ...(requestOptions?.signal !== undefined ? { signal: requestOptions.signal } : {}), ...(requestOptions?.timeout !== undefined ? { timeout: requestOptions.timeout } : {}), method: 'GET' as any, sdkworkUnwrapKind: 'page' });
   }

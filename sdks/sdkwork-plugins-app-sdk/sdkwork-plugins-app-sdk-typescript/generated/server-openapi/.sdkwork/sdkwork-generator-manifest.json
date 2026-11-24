@@ -64,7 +64,7 @@
     },
     {
       "path": "src/api/plugins.ts",
-      "sha256": "66cd76d6d0b6354a2ae586c96a7cc46bd5b70d883dd9ba82819e450745bf08bf"
+      "sha256": "a0d4cb348f1e0b4822fd47ee075294c9d1ed79783ff29bbbf9d176a3e3c71cda"
     },
     {
       "path": "src/auth/index.ts",
@@ -120,11 +120,11 @@
     },
     {
       "path": "src/types/plugin-category-record.ts",
-      "sha256": "feb6146bd7b9ef8a596f68e3f9f2d5d668c2bb5e18c43b940318e922279c70a8"
+      "sha256": "9749fb29c8cb91df23cf550437905a3055876070549ace7afd0ddf752c0665b8"
     },
     {
       "path": "src/types/plugin-record.ts",
-      "sha256": "1818e4ca6c51efb400c87c687a4a7f1f0fd6696668dc7c7d7a32d2c4293791d1"
+      "sha256": "95aed22d16650ac13d24e72588a3c55c11bcb61883feb5b722fdecdc5da8ea21"
     },
     {
       "path": "src/types/plugins-list-categories-response.ts",

@@ -1,5 +1,5 @@
 use sdkwork_id_core::SnowflakeIdGenerator;
-use sdkwork_intelligence_plugins_service::{PluginsResult, PluginsServiceError};
+use sdkwork_intelligence_plugins_service::{PluginCatalogSort, PluginsResult, PluginsServiceError};
 use sdkwork_plugins_contract::{
     PluginCategoryRecord, PluginImplementationType, PluginInstallStatus, PluginLifecycleStatus,
     PluginRecord, PluginVisibility,
@@ -31,14 +31,14 @@ const CATALOG_VISIBLE_FILTER: &str = catalog_visible_filter!();
 
 macro_rules! category_columns {
     () => {
-        "id, uuid, tenant_id, organization_id, category_code, name, description, sort_order, \
+        "id, uuid, tenant_id, organization_id, category_code, name, description, name_locales_json, description_locales_json, sort_order, \
          lifecycle_status, version, created_at, updated_at, created_by, updated_by, deleted_at"
     };
 }
 
 macro_rules! plugin_columns {
     () => {
-        "id, uuid, tenant_id, organization_id, owner_user_id, plugin_key, name, description, \
+        "id, uuid, tenant_id, organization_id, owner_user_id, plugin_key, name, description, name_locales_json, description_locales_json, icon_url, usage_count, is_featured, featured_order, featured_title_locales_json, featured_description_locales_json, featured_image_url, \
          category_id, category_code, version_label, provider, implementation_type, visibility, \
          manifest_json, source_json, install_status, lifecycle_status, tags_json, \
          allowed_role_codes_json, version, created_at, updated_at, created_by, updated_by, \
@@ -63,6 +63,10 @@ macro_rules! plugin_keyword_predicate {
             $keyword,
             " OR LOWER(COALESCE(description, '')) LIKE ",
             $keyword,
+            " OR LOWER(name_locales_json::text) LIKE ",
+            $keyword,
+            " OR LOWER(description_locales_json::text) LIKE ",
+            $keyword,
             " OR LOWER(COALESCE(category_code, '')) LIKE ",
             $keyword,
             " OR LOWER(tags_json::text) LIKE ",
@@ -84,6 +88,10 @@ macro_rules! category_keyword_predicate {
             " OR LOWER(category_code) LIKE ",
             $keyword,
             " OR LOWER(COALESCE(description, '')) LIKE ",
+            $keyword,
+            " OR LOWER(name_locales_json::text) LIKE ",
+            $keyword,
+            " OR LOWER(description_locales_json::text) LIKE ",
             $keyword,
             ")"
         )
@@ -178,7 +186,7 @@ const PLUGIN_PAGE_SQL_CATALOG: &str = concat!(
     category_code_predicate!("$5"),
     " AND ",
     plugin_role_predicate!("$6"),
-    " ORDER BY updated_at DESC, plugin_key ASC LIMIT $7 OFFSET $8"
+    " AND ($7 = FALSE OR is_featured = TRUE) ORDER BY CASE WHEN $7 = TRUE THEN featured_order END ASC NULLS LAST, CASE WHEN $7 = TRUE OR $8 = 'usage_count_desc' THEN usage_count END DESC NULLS LAST, CASE WHEN $7 = TRUE OR $8 = 'usage_count_desc' THEN NULL ELSE updated_at END DESC NULLS LAST, plugin_key ASC LIMIT $9 OFFSET $10"
 );
 
 /// Admin category page; categories carry no role list, so the page predicate
@@ -295,6 +303,8 @@ fn row_to_category(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginCategoryR
         category_code: row.try_get("category_code").map_err(map_sqlx)?,
         name: row.try_get("name").map_err(map_sqlx)?,
         description: row.try_get("description").map_err(map_sqlx)?,
+        name_locales: row.try_get("name_locales_json").map_err(map_sqlx)?,
+        description_locales: row.try_get("description_locales_json").map_err(map_sqlx)?,
         sort_order: row.try_get("sort_order").map_err(map_sqlx)?,
         lifecycle_status: map_lifecycle(row.try_get("lifecycle_status").map_err(map_sqlx)?)?,
         version: row.try_get::<i64, _>("version").map_err(map_sqlx)?,
@@ -312,6 +322,22 @@ fn row_to_plugin(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginRecord> {
         plugin_key: row.try_get("plugin_key").map_err(map_sqlx)?,
         name: row.try_get("name").map_err(map_sqlx)?,
         description: row.try_get("description").map_err(map_sqlx)?,
+        name_locales: row.try_get("name_locales_json").map_err(map_sqlx)?,
+        description_locales: row.try_get("description_locales_json").map_err(map_sqlx)?,
+        icon_url: row.try_get("icon_url").map_err(map_sqlx)?,
+        usage_count: row
+            .try_get::<i64, _>("usage_count")
+            .map_err(map_sqlx)?
+            .max(0) as u64,
+        featured: row.try_get("is_featured").map_err(map_sqlx)?,
+        featured_order: row.try_get("featured_order").map_err(map_sqlx)?,
+        featured_title_locales: row
+            .try_get("featured_title_locales_json")
+            .map_err(map_sqlx)?,
+        featured_description_locales: row
+            .try_get("featured_description_locales_json")
+            .map_err(map_sqlx)?,
+        featured_image_url: row.try_get("featured_image_url").map_err(map_sqlx)?,
         category_id: row
             .try_get::<Option<i64>, _>("category_id")
             .map_err(map_sqlx)?,
@@ -506,12 +532,15 @@ pub async fn upsert_category(
     let query = format!(
         r#"
         INSERT INTO ai_plugin_category (
-            id, uuid, tenant_id, category_code, name, description, sort_order,
+            id, uuid, tenant_id, category_code, name, description, name_locales_json,
+            description_locales_json, sort_order,
             lifecycle_status, version, created_by, updated_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (tenant_id, category_code) DO UPDATE SET
             name = EXCLUDED.name,
             description = EXCLUDED.description,
+            name_locales_json = EXCLUDED.name_locales_json,
+            description_locales_json = EXCLUDED.description_locales_json,
             sort_order = EXCLUDED.sort_order,
             lifecycle_status = EXCLUDED.lifecycle_status,
             version = ai_plugin_category.version + 1,
@@ -528,6 +557,8 @@ pub async fn upsert_category(
         .bind(&record.category_code)
         .bind(&record.name)
         .bind(&record.description)
+        .bind(record.name_locales.clone())
+        .bind(record.description_locales.clone())
         .bind(record.sort_order)
         .bind(record.lifecycle_status.as_db_code())
         .bind(record.version)
@@ -594,7 +625,7 @@ pub async fn list_plugins_page(
 }
 
 /// Catalog-visible plugins: only `active` rows inside the caller's visibility
-/// scope, newest first.
+/// scope, with featured placement and usage ordering.
 ///
 /// Draft, disabled and archived plugins stay admin-only through
 /// [`ACTIVE_ENTITY_FILTER`] on [`list_plugins`], and a plugin is listed only
@@ -634,6 +665,8 @@ pub async fn list_catalog_plugins_page(
     organization_id: u64,
     user_id: u64,
     filter: &CatalogViewFilter,
+    featured_only: bool,
+    sort: PluginCatalogSort,
     keyword: Option<&str>,
     limit: i64,
     offset: i64,
@@ -645,6 +678,11 @@ pub async fn list_catalog_plugins_page(
         .bind(keyword_pattern(keyword))
         .bind(filter.category_code())
         .bind(filter.role_codes().to_vec())
+        .bind(featured_only)
+        .bind(match sort {
+            PluginCatalogSort::UpdatedAtDesc => "updated_at_desc",
+            PluginCatalogSort::UsageCountDesc => "usage_count_desc",
+        })
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -659,6 +697,11 @@ pub async fn list_catalog_plugins_page(
             .bind(keyword_pattern(keyword))
             .bind(filter.category_code())
             .bind(filter.role_codes().to_vec())
+            .bind(featured_only)
+            .bind(match sort {
+                PluginCatalogSort::UpdatedAtDesc => "updated_at_desc",
+                PluginCatalogSort::UsageCountDesc => "usage_count_desc",
+            })
             .bind(1_i64)
             .bind(0_i64)
             .fetch_optional(pool)
@@ -749,12 +792,14 @@ pub async fn create_plugin(
         r#"
         INSERT INTO ai_plugin (
             id, uuid, tenant_id, organization_id, owner_user_id, plugin_key, name, description,
+            name_locales_json, description_locales_json, icon_url, is_featured, featured_order,
+            featured_title_locales_json, featured_description_locales_json, featured_image_url,
             category_id, category_code, version_label, provider, implementation_type, visibility,
             manifest_json, source_json, install_status, lifecycle_status, tags_json,
             allowed_role_codes_json, version, created_by, updated_by
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20, $21, $22, $23
+            $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
         )
         RETURNING {PLUGIN_SELECT}
         "#
@@ -768,6 +813,14 @@ pub async fn create_plugin(
         .bind(&record.plugin_key)
         .bind(&record.name)
         .bind(&record.description)
+        .bind(record.name_locales.clone())
+        .bind(record.description_locales.clone())
+        .bind(&record.icon_url)
+        .bind(record.featured)
+        .bind(record.featured_order)
+        .bind(record.featured_title_locales.clone())
+        .bind(record.featured_description_locales.clone())
+        .bind(&record.featured_image_url)
         .bind(record.category_id)
         .bind(&record.category_code)
         .bind(&record.version_label)
@@ -811,22 +864,30 @@ pub async fn update_plugin(
         UPDATE ai_plugin SET
             name = $3,
             description = $4,
-            category_id = $5,
-            category_code = $6,
-            version_label = $7,
-            provider = $8,
-            implementation_type = $9,
-            visibility = $10,
-            manifest_json = $11,
-            source_json = $12,
-            install_status = $13,
-            lifecycle_status = $14,
-            tags_json = $15,
-            allowed_role_codes_json = $16,
-            organization_id = $17,
-            owner_user_id = $18,
+            name_locales_json = $5,
+            description_locales_json = $6,
+            icon_url = $7,
+            is_featured = $8,
+            featured_order = $9,
+            featured_title_locales_json = $10,
+            featured_description_locales_json = $11,
+            featured_image_url = $12,
+            category_id = $13,
+            category_code = $14,
+            version_label = $15,
+            provider = $16,
+            implementation_type = $17,
+            visibility = $18,
+            manifest_json = $19,
+            source_json = $20,
+            install_status = $21,
+            lifecycle_status = $22,
+            tags_json = $23,
+            allowed_role_codes_json = $24,
+            organization_id = $25,
+            owner_user_id = $26,
             version = ai_plugin.version + 1,
-            updated_by = $19,
+            updated_by = $27,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1 AND plugin_key = $2 AND deleted_at IS NULL
         RETURNING {PLUGIN_SELECT}
@@ -837,6 +898,14 @@ pub async fn update_plugin(
         .bind(plugin_key)
         .bind(&record.name)
         .bind(&record.description)
+        .bind(record.name_locales.clone())
+        .bind(record.description_locales.clone())
+        .bind(&record.icon_url)
+        .bind(record.featured)
+        .bind(record.featured_order)
+        .bind(record.featured_title_locales.clone())
+        .bind(record.featured_description_locales.clone())
+        .bind(&record.featured_image_url)
         .bind(record.category_id)
         .bind(&record.category_code)
         .bind(&record.version_label)
@@ -924,10 +993,23 @@ mod tests {
         let catalog_plugin_sql = PLUGIN_PAGE_SQL_CATALOG;
         assert!(catalog_plugin_sql.contains("COUNT(*) OVER()"));
         assert!(catalog_plugin_sql.contains(LIST_TOTAL_SQL_COLUMN));
-        assert!(catalog_plugin_sql.contains("LIMIT $7 OFFSET $8"));
+        assert!(catalog_plugin_sql.contains("LIMIT $9 OFFSET $10"));
         assert!(catalog_plugin_sql.contains(plugin_keyword_predicate!("$4")));
+        assert!(catalog_plugin_sql.contains("LOWER(name_locales_json::text) LIKE $4"));
+        assert!(catalog_plugin_sql.contains("LOWER(description_locales_json::text) LIKE $4"));
         assert!(catalog_plugin_sql.contains(category_code_predicate!("$5")));
         assert!(catalog_plugin_sql.contains(plugin_role_predicate!("$6")));
+        assert!(catalog_plugin_sql.contains("$8 = 'usage_count_desc'"));
+        assert!(
+            catalog_plugin_sql
+                .contains("CASE WHEN $7 = TRUE THEN featured_order END ASC NULLS LAST")
+        );
+        assert!(catalog_plugin_sql.contains(
+            "CASE WHEN $7 = TRUE OR $8 = 'usage_count_desc' THEN usage_count END DESC NULLS LAST"
+        ));
+        assert!(catalog_plugin_sql.contains("THEN usage_count END DESC NULLS LAST"));
+        assert!(catalog_plugin_sql.contains("THEN NULL ELSE updated_at END DESC NULLS LAST"));
+        assert!(catalog_plugin_sql.ends_with("LIMIT $9 OFFSET $10"));
 
         for sql in [CATEGORY_PAGE_SQL_ADMIN, CATEGORY_PAGE_SQL_CATALOG] {
             assert!(sql.contains("COUNT(*) OVER()"));

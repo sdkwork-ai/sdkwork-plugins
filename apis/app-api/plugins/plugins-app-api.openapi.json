@@ -25,7 +25,7 @@
           "plugins"
         ],
         "summary": "Plugins plugins.list",
-        "description": "Marketplace listing. Returns only catalog-visible plugins (`status` = `active` and not soft-deleted), newest first; draft, disabled and archived plugins stay visible to the backend administration API only. Both catalog view filters (`category_code`, `role_codes`) further narrow the already tenant-scoped set.",
+        "description": "Marketplace listing. Returns only catalog-visible plugins (`status` = `active` and not soft-deleted). `sort` accepts `updated_at_desc` or `usage_count_desc` and defaults to `updated_at_desc`. When `featured_only` is true, featured order takes precedence over `sort`. Category and role filters further narrow the already tenant-scoped set.",
         "operationId": "plugins.list",
         "parameters": [
           {
@@ -92,6 +92,30 @@
             "schema": {
               "type": "string",
               "maxLength": 1024
+            }
+          },
+          {
+            "name": "featured_only",
+            "in": "query",
+            "required": false,
+            "description": "When true, return only plugins marked for featured placement, ordered by featured order ascending, usage count descending, and plugin key ascending. This ordering is applied before pagination.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Catalog order. `updated_at_desc` sorts by update time newest first and is the default when omitted. `usage_count_desc` sorts by usage count highest first. `featured_only=true` overrides this with featured order.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "updated_at_desc",
+                "usage_count_desc"
+              ],
+              "default": "updated_at_desc"
             }
           }
         ],
@@ -663,7 +687,9 @@
           "lifecycleStatus",
           "version",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "nameLocales",
+          "descriptionLocales"
         ],
         "properties": {
           "id": {
@@ -713,6 +739,22 @@
           },
           "updatedAt": {
             "type": "string"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized descriptions keyed by BCP-47 locale."
           }
         }
       },
@@ -736,7 +778,16 @@
           "status",
           "version",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "nameLocales",
+          "descriptionLocales",
+          "iconUrl",
+          "usageCount",
+          "featured",
+          "featuredOrder",
+          "featuredTitleLocales",
+          "featuredDescriptionLocales",
+          "featuredImageUrl"
         ],
         "properties": {
           "id": {
@@ -875,6 +926,70 @@
           },
           "source": {
             "$ref": "#/components/schemas/PluginArtifactSource"
+          },
+          "nameLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized display names keyed by BCP-47 locale."
+          },
+          "descriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized descriptions keyed by BCP-47 locale."
+          },
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plugin icon URL resolved through SDKWork media."
+          },
+          "usageCount": {
+            "type": "string",
+            "format": "int64",
+            "pattern": "^-?[0-9]+$",
+            "x-sdkwork-int64-string": true,
+            "description": "Usage count used for catalog ranking and display."
+          },
+          "featured": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the plugin is eligible for featured placement."
+          },
+          "featuredOrder": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0,
+            "description": "Lower values appear first among featured plugins."
+          },
+          "featuredTitleLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card titles keyed by BCP-47 locale."
+          },
+          "featuredDescriptionLocales": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "Localized featured-card descriptions keyed by BCP-47 locale."
+          },
+          "featuredImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Featured-card image URL resolved through SDKWork media."
           }
         }
       },
