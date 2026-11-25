@@ -86,11 +86,16 @@ pub struct PluginMarketplaceMetadata {
     pub categories: Vec<String>,
     #[serde(default)]
     pub added: Option<String>,
-    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    /// Star count captured by the registry. Stored snapshots keep the
+    /// registry's JSON number, so intake accepts either representation while
+    /// the wire form stays the contract decimal string (`catalog_numbers`).
+    #[serde(default, with = "crate::catalog_numbers")]
     pub stars: Option<u64>,
     #[serde(default)]
     pub stars_checked_at: Option<String>,
-    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    /// Download count captured by the registry, read through the same
+    /// number-or-string intake as `stars`.
+    #[serde(default, with = "crate::catalog_numbers")]
     pub downloads: Option<u64>,
     #[serde(default)]
     pub downloads_start: Option<String>,
@@ -98,7 +103,8 @@ pub struct PluginMarketplaceMetadata {
     pub downloads_end: Option<String>,
     #[serde(default)]
     pub downloads_checked_at: Option<String>,
-    #[serde(default, with = "sdkwork_utils_rust::serde_uint64::option")]
+    /// Release-asset download count from the registry, same intake rule.
+    #[serde(default, with = "crate::catalog_numbers")]
     pub github_release_downloads: Option<u64>,
     #[serde(default)]
     pub release_manifest: Option<serde_json::Value>,
@@ -454,5 +460,46 @@ mod tests {
         assert_eq!(wire["installTargets"][1]["packageVersion"], Value::Null);
         assert_eq!(wire["media"][0]["sortOrder"], json!(2));
         assert_eq!(wire["capabilityRedLines"][0], json!("reads credentials and calls the network"));
+    }
+
+    /// The curated catalog snapshot is stored verbatim from the upstream
+    /// registry, where star and download counts are JSON numbers. Reading that
+    /// projection with the strict wire helper discarded the metadata and failed
+    /// every marketplace page with `50001`; the record must decode it and still
+    /// emit the contract decimal string on the wire.
+    #[test]
+    fn stored_registry_metadata_numbers_decode_into_the_wire_string_form() {
+        let mut value = base_record();
+        value["marketplaceMetadata"] = json!({
+            "provider": "dsh-market",
+            "catalogUrl": "https://github.com/00080000/dsh-project-memory",
+            "owner": "00080000",
+            "version": "0.7.1",
+            "categories": ["memory"],
+            "added": "2026-08-20",
+            "stars": 34,
+            "downloads": 9990,
+            "githubReleaseDownloads": 0,
+            "capabilityRedLines": [],
+            "raw": {}
+        });
+
+        let record: PluginRecord =
+            serde_json::from_value(value).expect("decode a registry snapshot stored with numbers");
+        let metadata = record
+            .marketplace_metadata
+            .as_ref()
+            .expect("stored registry projection");
+        assert_eq!(metadata.stars, Some(34));
+        assert_eq!(metadata.downloads, Some(9_990));
+        assert_eq!(metadata.github_release_downloads, Some(0));
+
+        let wire = serde_json::to_value(&record).expect("encode the catalog record");
+        assert_eq!(wire["marketplaceMetadata"]["stars"], json!("34"));
+        assert_eq!(wire["marketplaceMetadata"]["downloads"], json!("9990"));
+        assert_eq!(
+            wire["marketplaceMetadata"]["githubReleaseDownloads"],
+            json!("0")
+        );
     }
 }

@@ -833,6 +833,28 @@ async fn hydrates_catalog_record_children_and_install_targets() {
     .await
     .expect("mark the plugin as a catalog row");
 
+    // `marketplace_metadata_json` stores the upstream registry entry verbatim,
+    // where star and download counts are JSON numbers. Decoding that stored
+    // projection must not fail the catalog page (`PluginMarketplaceMetadata`).
+    sqlx::query(
+        "UPDATE ai_plugin SET marketplace_metadata_json = $1::jsonb
+         WHERE tenant_id = 100001 AND plugin_key = 'catalog-demo'",
+    )
+    .bind(serde_json::json!({
+        "provider": "dsh-market",
+        "catalogUrl": "https://github.com/example/demo",
+        "owner": "example",
+        "added": "2026-10-27",
+        "stars": 42,
+        "downloads": 1234,
+        "githubReleaseDownloads": 0,
+        "categories": ["code-development"],
+        "raw": {}
+    }))
+    .execute(&pool)
+    .await
+    .expect("store the registry projection with numbers");
+
     let plugin_id = created.id;
     for (id, uuid, kind, spec, package_name, package_version, is_default, priority) in [
         (
@@ -974,6 +996,13 @@ async fn hydrates_catalog_record_children_and_install_targets() {
     assert_eq!(fetched.owner_login.as_deref(), Some("example"));
     assert_eq!(fetched.stars_count, 42);
     assert_eq!(fetched.downloads_count, 1234);
+    let metadata = fetched
+        .marketplace_metadata
+        .as_ref()
+        .expect("the stored registry projection decodes from its numeric encoding");
+    assert_eq!(metadata.stars, Some(42));
+    assert_eq!(metadata.downloads, Some(1_234));
+    assert_eq!(metadata.github_release_downloads, Some(0));
     assert_eq!(fetched.added_on.as_deref(), Some("2026-10-27"));
     assert_eq!(fetched.downloads_start.as_deref(), Some("2026-10-25"));
     assert_eq!(fetched.downloads_end.as_deref(), Some("2026-11-23"));

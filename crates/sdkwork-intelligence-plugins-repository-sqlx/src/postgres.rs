@@ -4,7 +4,7 @@ use sdkwork_id_core::SnowflakeIdGenerator;
 use sdkwork_intelligence_plugins_service::{PluginCatalogSort, PluginsResult, PluginsServiceError};
 use sdkwork_plugins_contract::{
     PluginCategoryRecord, PluginImplementationType, PluginInstallStatus, PluginInstallTarget,
-    PluginLifecycleStatus, PluginMedia, PluginRecord, PluginVisibility,
+    PluginLifecycleStatus, PluginMarketplaceMetadata, PluginMedia, PluginRecord, PluginVisibility,
 };
 use sdkwork_utils_rust::{CatalogViewFilter, LIST_TOTAL_SQL_COLUMN};
 use sqlx::{PgPool, Row};
@@ -566,14 +566,7 @@ fn row_to_plugin(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginRecord> {
             .map_err(|error| {
                 PluginsServiceError::Repository(format!("invalid source_json: {error}"))
             })?,
-        marketplace_metadata: row
-            .try_get::<Option<serde_json::Value>, _>("marketplace_metadata_json")
-            .map_err(map_sqlx)?
-            .map(serde_json::from_value)
-            .transpose()
-            .map_err(|error| {
-                PluginsServiceError::Repository(format!("invalid marketplace_metadata_json: {error}"))
-            })?,
+        marketplace_metadata: decode_marketplace_metadata(row)?,
         catalog_provider: row.try_get("catalog_provider").map_err(map_sqlx)?,
         catalog_url: row.try_get("catalog_url").map_err(map_sqlx)?,
         catalog_page_url: row.try_get("catalog_page_url").map_err(map_sqlx)?,
@@ -624,6 +617,38 @@ fn row_to_plugin(row: &sqlx::postgres::PgRow) -> PluginsResult<PluginRecord> {
         created_at: timestamp_to_rfc3339(row.try_get("created_at").map_err(map_sqlx)?),
         updated_at: timestamp_to_rfc3339(row.try_get("updated_at").map_err(map_sqlx)?),
     })
+}
+
+/// Reads the curated registry projection of one plugin.
+///
+/// `marketplace_metadata_json` stores the upstream registry entry verbatim, so
+/// a shape this build cannot read (an unknown number encoding, a truncated
+/// import) is a data-quality signal about one catalog row — never a reason to
+/// fail the page that carries it. The plugin still lists with
+/// `marketplace_metadata = None` and the rejection is reported here.
+fn decode_marketplace_metadata(
+    row: &sqlx::postgres::PgRow,
+) -> PluginsResult<Option<PluginMarketplaceMetadata>> {
+    let Some(value) = row
+        .try_get::<Option<serde_json::Value>, _>("marketplace_metadata_json")
+        .map_err(map_sqlx)?
+    else {
+        return Ok(None);
+    };
+    match serde_json::from_value(value) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) => {
+            let plugin_key = row
+                .try_get::<String, _>("plugin_key")
+                .unwrap_or_else(|_| "<unknown>".to_string());
+            tracing::warn!(
+                plugin_key = %plugin_key,
+                error = %error,
+                "stored marketplace metadata is not a readable projection; the plugin is listed without it"
+            );
+            Ok(None)
+        }
+    }
 }
 
 pub async fn list_categories(
