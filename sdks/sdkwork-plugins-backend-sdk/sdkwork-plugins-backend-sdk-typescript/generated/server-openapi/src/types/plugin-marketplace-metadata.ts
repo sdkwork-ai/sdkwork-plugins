@@ -1,3 +1,6 @@
+import type { PluginMarketplaceCommit } from './plugin-marketplace-commit';
+import type { PluginMarketplaceRelease } from './plugin-marketplace-release';
+
 /** Curated registry metadata. catalogUrl is the registry-authoritative identity; install is display-only. */
 export interface PluginMarketplaceMetadata {
   provider: string;
@@ -22,6 +25,9 @@ export interface PluginMarketplaceMetadata {
   downloadsCheckedAt?: string | null;
   githubReleaseDownloads?: string | null;
   releaseManifest?: Record<string, unknown>;
+  release?: PluginMarketplaceRelease | null;
+  recentCommits?: PluginMarketplaceCommit[];
+  updatesCheckedAt?: string | null;
   iconUrl?: string | null;
   screenshots?: string[];
   capabilities?: string[];

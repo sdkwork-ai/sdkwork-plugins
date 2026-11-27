@@ -165,6 +165,8 @@ test('card bodies are never click targets and only explicit controls install', (
   assert.equal((pageSource.match(/<InstallControls /gu) ?? []).length, 2, 'both card layouts share the install controls');
   assert.equal((pageSource.match(/onOpenPlugin\(/gu) ?? []).length, 1, 'the featured title is the only plugin-opening control');
   assert.ok(pageSource.includes('styles.featureTitleLink'), 'the featured title is a link-button');
+  assert.ok(pageSource.includes('entry.categoryCode === plugin.categoryCode'), 'the eyebrow resolves the plugin category');
+  assert.ok(pageSource.includes('styles.featureFallback'), 'a featured card without media keeps its artwork tile');
   assert.ok(pageSource.includes('aria-describedby='), 'a blocked control must reference its reason');
   assert.ok(pageSource.includes('role="alert"'), 'a failed install must be announced');
 });

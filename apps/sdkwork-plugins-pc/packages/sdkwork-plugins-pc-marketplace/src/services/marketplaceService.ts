@@ -78,7 +78,7 @@ export async function loadMarketplaceCatalog(
   const [categories, featuredPage, popularPageResult] = await Promise.all([
     client.plugins.listCategories({ page: 1, pageSize: 200 }, { signal }),
     includeFeatured
-      ? client.plugins.list({ page: 1, pageSize: 2, ...sharedFilters, featuredOnly: true }, { signal })
+      ? client.plugins.list({ page: 1, pageSize: 3, ...sharedFilters, featuredOnly: true }, { signal })
       : Promise.resolve({ items: [] as PluginRecord[] }),
     client.plugins.list({
       page: popularPage,

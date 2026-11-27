@@ -30,12 +30,13 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "plugins.listCategories",
         PERM_MARKETPLACE_READ,
     ),
+    plugins_route(
+        HttpMethod::Put,
+        "/app/v3/api/plugin_installations/{hostId}",
+        "plugins.syncInstallation",
+        PERM_MARKETPLACE_INSTALL,
+    ),
 ];
-
-/// The user-scoped install lifecycle has moved to the client's Host profile,
-/// so the marketplace serves install targets as record data and the code
-/// stays a reserved IAM inventory export rather than a route permission.
-pub const RESERVED_MARKETPLACE_INSTALL_PERMISSION: &str = PERM_MARKETPLACE_INSTALL;
 
 pub fn app_route_manifest() -> HttpRouteManifest {
     HttpRouteManifest::new(HTTP_ROUTES)

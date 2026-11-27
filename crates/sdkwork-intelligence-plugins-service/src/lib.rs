@@ -6,6 +6,8 @@ mod in_memory;
 mod validation;
 
 #[cfg(test)]
+mod installation_tests;
+#[cfg(test)]
 mod validation_tests;
 
 use async_trait::async_trait;
@@ -13,7 +15,9 @@ use thiserror::Error;
 
 pub use commands::{CreatePluginCommand, UpdatePluginCommand, UpsertPluginCategoryCommand};
 pub use in_memory::InMemoryPluginRepository;
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_plugins_contract::{
+    PluginCategoryRecord, PluginInstallationRecord, PluginInstallationSyncCommand, PluginRecord,
+};
 use sdkwork_utils_rust::CatalogViewFilter;
 
 #[derive(Debug, Error)]
@@ -156,6 +160,26 @@ pub trait PluginsRepository: Send + Sync {
     ) -> PluginsResult<PluginRecord>;
 
     async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord>;
+
+    /// Persist one confirmed Host mutation together with its catalog snapshot.
+    async fn sync_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        record: PluginInstallationRecord,
+    ) -> PluginsResult<PluginInstallationRecord>;
+
+    /// Existing installation used to remove a plugin without exposing a hidden
+    /// or newly private catalog record.
+    async fn get_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        host_id: &str,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginInstallationRecord>>;
 }
 
 pub struct PluginsService<R: PluginsRepository> {
@@ -365,6 +389,102 @@ impl<R: PluginsRepository> PluginsService<R> {
     ) -> PluginsResult<PluginRecord> {
         validation::validate_plugin_key(plugin_key)?;
         self.repository.delete_plugin(tenant_id, plugin_key).await
+    }
+
+    /// Store a mutation only after the Host confirmed it. Installation and
+    /// update require a currently visible catalog row; removal reuses the
+    /// previously stored snapshot so a retired catalog entry remains removable.
+    pub async fn sync_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        host_id: &str,
+        command: PluginInstallationSyncCommand,
+    ) -> PluginsResult<PluginInstallationRecord> {
+        validation::validate_plugin_key(&command.plugin_key)?;
+        let host_id = host_id.trim();
+        if host_id.is_empty() || host_id.len() > 128 {
+            return Err(PluginsServiceError::InvalidArgument(
+                "hostId must contain 1 to 128 characters".to_string(),
+            ));
+        }
+        if user_id == 0 {
+            return Err(PluginsServiceError::InvalidArgument(
+                "a verified user is required to synchronize an installation".to_string(),
+            ));
+        }
+        let removed = command.action == sdkwork_plugins_contract::PluginInstallationAction::Removed;
+        let existing = self
+            .repository
+            .get_installation(
+                tenant_id,
+                organization_id,
+                user_id,
+                host_id,
+                &command.plugin_key,
+            )
+            .await?;
+        let stored_snapshot = existing.as_ref().map(|record| record.snapshot.clone());
+        let snapshot = match stored_snapshot {
+            Some(snapshot)
+                if removed
+                    || command.action
+                        == sdkwork_plugins_contract::PluginInstallationAction::Updated =>
+            {
+                snapshot
+            }
+            _ => self
+                .repository
+                .get_catalog_plugin(tenant_id, organization_id, user_id, &command.plugin_key)
+                .await?
+                .ok_or_else(|| PluginsServiceError::NotFound(command.plugin_key.clone()))?,
+        };
+        let status = if removed {
+            sdkwork_plugins_contract::PluginInstallationStatus::Removed
+        } else {
+            sdkwork_plugins_contract::PluginInstallationStatus::Installed
+        };
+        let record = PluginInstallationRecord {
+            id: existing.as_ref().map_or(0, |record| record.id),
+            host_id: host_id.to_string(),
+            plugin_key: command.plugin_key,
+            package_name: command
+                .package_name
+                .or_else(|| {
+                    existing
+                        .as_ref()
+                        .and_then(|record| record.package_name.clone())
+                })
+                .or_else(|| snapshot.npm_package.clone()),
+            version: command
+                .version
+                .or_else(|| existing.as_ref().and_then(|record| record.version.clone()))
+                .or_else(|| snapshot.registry_version.clone()),
+            install_spec: command
+                .install_spec
+                .or_else(|| {
+                    existing
+                        .as_ref()
+                        .and_then(|record| record.install_spec.clone())
+                })
+                .or_else(|| {
+                    snapshot
+                        .install_target
+                        .as_ref()
+                        .map(|target| target.spec.clone())
+                }),
+            status,
+            catalog_revision: snapshot.catalog_revision.clone(),
+            snapshot,
+            synchronized_at: String::new(),
+            removed_at: existing
+                .as_ref()
+                .and_then(|record| record.removed_at.clone()),
+        };
+        self.repository
+            .sync_installation(tenant_id, organization_id, user_id, record)
+            .await
     }
 }
 

@@ -12,11 +12,12 @@
   "mode": "apply",
   "hasChanges": true,
   "hasDestructiveChanges": true,
-  "changeFingerprint": "3dc6b148be367d625acd3e2d5b14393c615e7d2d232b59aabaf57751ded6a817",
+  "changeFingerprint": "9f6d9f336d69a3ce8519c663a763c057f4d6cbe8c086a5242b92820450fd875a",
   "changeImpact": {
     "schemaVersion": 1,
     "areas": [
-      "models"
+      "models",
+      "publish-workflow"
     ],
     "details": [
       {
@@ -24,16 +25,27 @@
         "paths": [
           "src/types/create-plugin-command.d.ts",
           "src/types/index.d.ts",
+          "src/types/index.ts",
+          "src/types/plugin-category-record.d.ts",
           "src/types/plugin-install-target.d.ts",
+          "src/types/plugin-marketplace-commit.ts",
           "src/types/plugin-marketplace-metadata.d.ts",
+          "src/types/plugin-marketplace-metadata.ts",
+          "src/types/plugin-marketplace-release.ts",
           "src/types/plugin-media.d.ts",
           "src/types/plugin-record.d.ts",
           "src/types/update-plugin-command.d.ts"
         ]
+      },
+      {
+        "area": "publish-workflow",
+        "paths": [
+          "bin/publish-core.mjs"
+        ]
       }
     ],
     "requiresVerification": true,
-    "summary": "Detected impact areas: models. Verification is required."
+    "summary": "Detected impact areas: models, publish-workflow. Verification is required."
   },
   "executionDecision": {
     "schemaVersion": 1,
@@ -57,7 +69,7 @@
         "id": "verify-check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -75,7 +87,7 @@
         "id": "verify-build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -94,13 +106,13 @@
   "verificationPlan": {
     "shouldRun": true,
     "runPhase": "now",
-    "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
+    "summary": "Detected impact areas: models, publish-workflow. Verification is required. Run the required verification commands now against the generated SDK output.",
     "steps": [
       {
         "id": "check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -118,7 +130,7 @@
         "id": "build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -148,26 +160,32 @@
     "localVersions": []
   },
   "stats": {
-    "totalFiles": 46,
-    "models": 22,
+    "totalFiles": 48,
+    "models": 24,
     "apis": 1,
-    "types": 24
+    "types": 26
   },
   "warnings": [],
   "syncSummary": {
     "dryRun": false,
     "controlPlaneEnabled": true,
-    "writtenFiles": 0,
+    "writtenFiles": 5,
     "skippedScaffoldFiles": 2,
-    "skippedUnchangedGeneratedFiles": 44,
-    "deletedGeneratedFiles": 7,
+    "skippedUnchangedGeneratedFiles": 41,
+    "deletedGeneratedFiles": 8,
     "changeSummaryPath": ".sdkwork/sdkwork-generator-changes.json",
-    "changeFingerprint": "3dc6b148be367d625acd3e2d5b14393c615e7d2d232b59aabaf57751ded6a817",
+    "changeFingerprint": "9f6d9f336d69a3ce8519c663a763c057f4d6cbe8c086a5242b92820450fd875a",
     "changes": {
-      "createdGeneratedFiles": [],
-      "updatedGeneratedFiles": [],
-      "unchangedGeneratedFiles": [
+      "createdGeneratedFiles": [
+        "src/types/plugin-marketplace-commit.ts",
+        "src/types/plugin-marketplace-release.ts"
+      ],
+      "updatedGeneratedFiles": [
         "bin/publish-core.mjs",
+        "src/types/index.ts",
+        "src/types/plugin-marketplace-metadata.ts"
+      ],
+      "unchangedGeneratedFiles": [
         "bin/publish.ps1",
         "bin/publish.sh",
         "bin/sdk-gen.bat",
@@ -189,7 +207,6 @@
         "src/types/common.ts",
         "src/types/create-plugin-command.ts",
         "src/types/field-error.ts",
-        "src/types/index.ts",
         "src/types/page-info.ts",
         "src/types/plugin-artifact-drive-directory-source.ts",
         "src/types/plugin-artifact-drive-file-source.ts",
@@ -197,7 +214,6 @@
         "src/types/plugin-artifact-source.ts",
         "src/types/plugin-category-record.ts",
         "src/types/plugin-install-target.ts",
-        "src/types/plugin-marketplace-metadata.ts",
         "src/types/plugin-media.ts",
         "src/types/plugin-record.ts",
         "src/types/plugins-admin-create-response201.ts",
@@ -215,6 +231,7 @@
       "deletedGeneratedFiles": [
         "src/types/create-plugin-command.d.ts",
         "src/types/index.d.ts",
+        "src/types/plugin-category-record.d.ts",
         "src/types/plugin-install-target.d.ts",
         "src/types/plugin-marketplace-metadata.d.ts",
         "src/types/plugin-media.d.ts",
@@ -229,6 +246,7 @@
       "backedUpFiles": [
         "src/types/create-plugin-command.d.ts",
         "src/types/index.d.ts",
+        "src/types/plugin-category-record.d.ts",
         "src/types/plugin-install-target.d.ts",
         "src/types/plugin-marketplace-metadata.d.ts",
         "src/types/plugin-media.d.ts",
@@ -239,7 +257,8 @@
     "impact": {
       "schemaVersion": 1,
       "areas": [
-        "models"
+        "models",
+        "publish-workflow"
       ],
       "details": [
         {
@@ -247,27 +266,38 @@
           "paths": [
             "src/types/create-plugin-command.d.ts",
             "src/types/index.d.ts",
+            "src/types/index.ts",
+            "src/types/plugin-category-record.d.ts",
             "src/types/plugin-install-target.d.ts",
+            "src/types/plugin-marketplace-commit.ts",
             "src/types/plugin-marketplace-metadata.d.ts",
+            "src/types/plugin-marketplace-metadata.ts",
+            "src/types/plugin-marketplace-release.ts",
             "src/types/plugin-media.d.ts",
             "src/types/plugin-record.d.ts",
             "src/types/update-plugin-command.d.ts"
           ]
+        },
+        {
+          "area": "publish-workflow",
+          "paths": [
+            "bin/publish-core.mjs"
+          ]
         }
       ],
       "requiresVerification": true,
-      "summary": "Detected impact areas: models. Verification is required."
+      "summary": "Detected impact areas: models, publish-workflow. Verification is required."
     },
     "verificationPlan": {
       "shouldRun": true,
       "runPhase": "now",
-      "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
+      "summary": "Detected impact areas: models, publish-workflow. Verification is required. Run the required verification commands now against the generated SDK output.",
       "steps": [
         {
           "id": "check",
           "title": "Unified package check",
           "required": true,
-          "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+          "rationale": "Validate the generated package with the unified publish helper. Triggered by: models, publish-workflow.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -285,7 +315,7 @@
           "id": "build",
           "title": "Unified package build",
           "required": true,
-          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models, publish-workflow.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-backend-sdk\\sdkwork-plugins-backend-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -318,6 +348,7 @@
     "backedUpFiles": [
       "src/types/create-plugin-command.d.ts",
       "src/types/index.d.ts",
+      "src/types/plugin-category-record.d.ts",
       "src/types/plugin-install-target.d.ts",
       "src/types/plugin-marketplace-metadata.d.ts",
       "src/types/plugin-media.d.ts",

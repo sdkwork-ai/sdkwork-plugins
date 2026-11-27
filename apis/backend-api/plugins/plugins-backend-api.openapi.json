@@ -1908,6 +1908,9 @@
           "downloadsCheckedAt": { "type": ["string", "null"], "format": "date-time" },
           "githubReleaseDownloads": { "type": ["string", "null"], "format": "int64", "pattern": "^[0-9]+$", "x-sdkwork-int64-string": true },
           "releaseManifest": { "type": ["object", "null"], "additionalProperties": true },
+          "release": { "anyOf": [{ "$ref": "#/components/schemas/PluginMarketplaceRelease" }, { "type": "null" }] },
+          "recentCommits": { "type": "array", "items": { "$ref": "#/components/schemas/PluginMarketplaceCommit" }, "default": [] },
+          "updatesCheckedAt": { "type": ["string", "null"] },
           "iconUrl": { "type": ["string", "null"], "format": "uri" },
           "screenshots": { "type": "array", "items": { "type": "string", "format": "uri" }, "default": [] },
           "capabilities": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -1918,6 +1921,27 @@
           "previousNpm": { "type": "array", "items": { "type": "string" }, "default": [] },
           "catalogRevision": { "type": ["string", "null"] },
           "raw": { "type": "object", "additionalProperties": true, "default": {} }
+        }
+      },
+      "PluginMarketplaceRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tag": { "type": ["string", "null"] },
+          "name": { "type": ["string", "null"] },
+          "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "url": { "type": ["string", "null"], "format": "uri" },
+          "body": { "type": ["string", "null"] }
+        }
+      },
+      "PluginMarketplaceCommit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha"],
+        "properties": {
+          "sha": { "type": "string", "minLength": 1 },
+          "message": { "type": ["string", "null"] },
+          "date": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "PluginArtifactDriveFileSource": {

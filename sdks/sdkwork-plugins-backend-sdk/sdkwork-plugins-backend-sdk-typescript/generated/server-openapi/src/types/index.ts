@@ -12,6 +12,8 @@ export type { UpdatePluginCommand } from './update-plugin-command';
 export type { PluginInstallTarget } from './plugin-install-target';
 export type { PluginMedia } from './plugin-media';
 export type { PluginMarketplaceMetadata } from './plugin-marketplace-metadata';
+export type { PluginMarketplaceRelease } from './plugin-marketplace-release';
+export type { PluginMarketplaceCommit } from './plugin-marketplace-commit';
 export type { PluginArtifactDriveFileSource } from './plugin-artifact-drive-file-source';
 export type { PluginArtifactDriveDirectorySource } from './plugin-artifact-drive-directory-source';
 export type { PluginArtifactGitSource } from './plugin-artifact-git-source';

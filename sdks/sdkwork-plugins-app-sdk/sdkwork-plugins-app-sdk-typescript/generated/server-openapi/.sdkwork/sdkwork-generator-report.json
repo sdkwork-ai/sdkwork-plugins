@@ -12,26 +12,65 @@
   "mode": "apply",
   "hasChanges": true,
   "hasDestructiveChanges": true,
-  "changeFingerprint": "3650b95197f0de0dcb66a6a67b32503b06835040aea20a296f0e4641779d8f82",
+  "changeFingerprint": "bf3bfd9b187061684f283911818f0f770a3b805141beb7594a8a36e689e7d110",
   "changeImpact": {
     "schemaVersion": 1,
     "areas": [
-      "models"
+      "api-surface",
+      "models",
+      "publish-workflow"
     ],
     "details": [
       {
+        "area": "api-surface",
+        "paths": [
+          "src/api/base.d.ts",
+          "src/api/index.d.ts",
+          "src/api/paths.d.ts",
+          "src/api/plugins.d.ts",
+          "src/api/plugins.ts"
+        ]
+      },
+      {
         "area": "models",
         "paths": [
+          "src/types/common.d.ts",
+          "src/types/field-error.d.ts",
           "src/types/index.d.ts",
+          "src/types/index.ts",
+          "src/types/page-info.d.ts",
+          "src/types/plugin-artifact-drive-directory-source.d.ts",
+          "src/types/plugin-artifact-drive-file-source.d.ts",
+          "src/types/plugin-artifact-git-source.d.ts",
+          "src/types/plugin-artifact-source.d.ts",
+          "src/types/plugin-category-record.d.ts",
           "src/types/plugin-install-target.d.ts",
+          "src/types/plugin-installation-record.ts",
+          "src/types/plugin-installation-sync-command.ts",
+          "src/types/plugin-marketplace-commit.ts",
           "src/types/plugin-marketplace-metadata.d.ts",
+          "src/types/plugin-marketplace-metadata.ts",
+          "src/types/plugin-marketplace-release.ts",
           "src/types/plugin-media.d.ts",
-          "src/types/plugin-record.d.ts"
+          "src/types/plugin-record.d.ts",
+          "src/types/plugins-list-categories-response.d.ts",
+          "src/types/plugins-list-response.d.ts",
+          "src/types/plugins-retrieve-response.d.ts",
+          "src/types/plugins-sync-installation-response.ts",
+          "src/types/problem-detail.d.ts",
+          "src/types/sdk-work-api-response.d.ts",
+          "src/types/sdk-work-platform-error-code.d.ts"
+        ]
+      },
+      {
+        "area": "publish-workflow",
+        "paths": [
+          "bin/publish-core.mjs"
         ]
       }
     ],
     "requiresVerification": true,
-    "summary": "Detected impact areas: models. Verification is required."
+    "summary": "Detected impact areas: api-surface, models, publish-workflow. Verification is required."
   },
   "executionDecision": {
     "schemaVersion": 1,
@@ -55,7 +94,7 @@
         "id": "verify-check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -73,7 +112,7 @@
         "id": "verify-build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -92,13 +131,13 @@
   "verificationPlan": {
     "shouldRun": true,
     "runPhase": "now",
-    "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
+    "summary": "Detected impact areas: api-surface, models, publish-workflow. Verification is required. Run the required verification commands now against the generated SDK output.",
     "steps": [
       {
         "id": "check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -116,7 +155,7 @@
         "id": "build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, publish-workflow.",
         "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -146,26 +185,36 @@
     "localVersions": []
   },
   "stats": {
-    "totalFiles": 41,
-    "models": 17,
+    "totalFiles": 46,
+    "models": 22,
     "apis": 1,
-    "types": 19
+    "types": 24
   },
   "warnings": [],
   "syncSummary": {
     "dryRun": false,
     "controlPlaneEnabled": true,
-    "writtenFiles": 0,
+    "writtenFiles": 9,
     "skippedScaffoldFiles": 2,
-    "skippedUnchangedGeneratedFiles": 39,
-    "deletedGeneratedFiles": 5,
+    "skippedUnchangedGeneratedFiles": 35,
+    "deletedGeneratedFiles": 23,
     "changeSummaryPath": ".sdkwork/sdkwork-generator-changes.json",
-    "changeFingerprint": "3650b95197f0de0dcb66a6a67b32503b06835040aea20a296f0e4641779d8f82",
+    "changeFingerprint": "bf3bfd9b187061684f283911818f0f770a3b805141beb7594a8a36e689e7d110",
     "changes": {
-      "createdGeneratedFiles": [],
-      "updatedGeneratedFiles": [],
-      "unchangedGeneratedFiles": [
+      "createdGeneratedFiles": [
+        "src/types/plugin-installation-record.ts",
+        "src/types/plugin-installation-sync-command.ts",
+        "src/types/plugin-marketplace-commit.ts",
+        "src/types/plugin-marketplace-release.ts",
+        "src/types/plugins-sync-installation-response.ts"
+      ],
+      "updatedGeneratedFiles": [
         "bin/publish-core.mjs",
+        "src/api/plugins.ts",
+        "src/types/index.ts",
+        "src/types/plugin-marketplace-metadata.ts"
+      ],
+      "unchangedGeneratedFiles": [
         "bin/publish.ps1",
         "bin/publish.sh",
         "bin/sdk-gen.bat",
@@ -178,7 +227,6 @@
         "src/api/base.ts",
         "src/api/index.ts",
         "src/api/paths.ts",
-        "src/api/plugins.ts",
         "src/auth/index.ts",
         "src/http/client.ts",
         "src/http/index.ts",
@@ -186,7 +234,6 @@
         "src/sdk.ts",
         "src/types/common.ts",
         "src/types/field-error.ts",
-        "src/types/index.ts",
         "src/types/page-info.ts",
         "src/types/plugin-artifact-drive-directory-source.ts",
         "src/types/plugin-artifact-drive-file-source.ts",
@@ -194,7 +241,6 @@
         "src/types/plugin-artifact-source.ts",
         "src/types/plugin-category-record.ts",
         "src/types/plugin-install-target.ts",
-        "src/types/plugin-marketplace-metadata.ts",
         "src/types/plugin-media.ts",
         "src/types/plugin-record.ts",
         "src/types/plugins-list-categories-response.ts",
@@ -206,11 +252,29 @@
         "tsconfig.json"
       ],
       "deletedGeneratedFiles": [
+        "src/api/base.d.ts",
+        "src/api/index.d.ts",
+        "src/api/paths.d.ts",
+        "src/api/plugins.d.ts",
+        "src/types/common.d.ts",
+        "src/types/field-error.d.ts",
         "src/types/index.d.ts",
+        "src/types/page-info.d.ts",
+        "src/types/plugin-artifact-drive-directory-source.d.ts",
+        "src/types/plugin-artifact-drive-file-source.d.ts",
+        "src/types/plugin-artifact-git-source.d.ts",
+        "src/types/plugin-artifact-source.d.ts",
+        "src/types/plugin-category-record.d.ts",
         "src/types/plugin-install-target.d.ts",
         "src/types/plugin-marketplace-metadata.d.ts",
         "src/types/plugin-media.d.ts",
-        "src/types/plugin-record.d.ts"
+        "src/types/plugin-record.d.ts",
+        "src/types/plugins-list-categories-response.d.ts",
+        "src/types/plugins-list-response.d.ts",
+        "src/types/plugins-retrieve-response.d.ts",
+        "src/types/problem-detail.d.ts",
+        "src/types/sdk-work-api-response.d.ts",
+        "src/types/sdk-work-platform-error-code.d.ts"
       ],
       "scaffoldedFiles": [],
       "preservedScaffoldFiles": [
@@ -218,43 +282,100 @@
         "custom/README.md"
       ],
       "backedUpFiles": [
+        "src/api/base.d.ts",
+        "src/api/index.d.ts",
+        "src/api/paths.d.ts",
+        "src/api/plugins.d.ts",
+        "src/types/common.d.ts",
+        "src/types/field-error.d.ts",
         "src/types/index.d.ts",
+        "src/types/page-info.d.ts",
+        "src/types/plugin-artifact-drive-directory-source.d.ts",
+        "src/types/plugin-artifact-drive-file-source.d.ts",
+        "src/types/plugin-artifact-git-source.d.ts",
+        "src/types/plugin-artifact-source.d.ts",
+        "src/types/plugin-category-record.d.ts",
         "src/types/plugin-install-target.d.ts",
         "src/types/plugin-marketplace-metadata.d.ts",
         "src/types/plugin-media.d.ts",
-        "src/types/plugin-record.d.ts"
+        "src/types/plugin-record.d.ts",
+        "src/types/plugins-list-categories-response.d.ts",
+        "src/types/plugins-list-response.d.ts",
+        "src/types/plugins-retrieve-response.d.ts",
+        "src/types/problem-detail.d.ts",
+        "src/types/sdk-work-api-response.d.ts",
+        "src/types/sdk-work-platform-error-code.d.ts"
       ]
     },
     "impact": {
       "schemaVersion": 1,
       "areas": [
-        "models"
+        "api-surface",
+        "models",
+        "publish-workflow"
       ],
       "details": [
         {
+          "area": "api-surface",
+          "paths": [
+            "src/api/base.d.ts",
+            "src/api/index.d.ts",
+            "src/api/paths.d.ts",
+            "src/api/plugins.d.ts",
+            "src/api/plugins.ts"
+          ]
+        },
+        {
           "area": "models",
           "paths": [
+            "src/types/common.d.ts",
+            "src/types/field-error.d.ts",
             "src/types/index.d.ts",
+            "src/types/index.ts",
+            "src/types/page-info.d.ts",
+            "src/types/plugin-artifact-drive-directory-source.d.ts",
+            "src/types/plugin-artifact-drive-file-source.d.ts",
+            "src/types/plugin-artifact-git-source.d.ts",
+            "src/types/plugin-artifact-source.d.ts",
+            "src/types/plugin-category-record.d.ts",
             "src/types/plugin-install-target.d.ts",
+            "src/types/plugin-installation-record.ts",
+            "src/types/plugin-installation-sync-command.ts",
+            "src/types/plugin-marketplace-commit.ts",
             "src/types/plugin-marketplace-metadata.d.ts",
+            "src/types/plugin-marketplace-metadata.ts",
+            "src/types/plugin-marketplace-release.ts",
             "src/types/plugin-media.d.ts",
-            "src/types/plugin-record.d.ts"
+            "src/types/plugin-record.d.ts",
+            "src/types/plugins-list-categories-response.d.ts",
+            "src/types/plugins-list-response.d.ts",
+            "src/types/plugins-retrieve-response.d.ts",
+            "src/types/plugins-sync-installation-response.ts",
+            "src/types/problem-detail.d.ts",
+            "src/types/sdk-work-api-response.d.ts",
+            "src/types/sdk-work-platform-error-code.d.ts"
+          ]
+        },
+        {
+          "area": "publish-workflow",
+          "paths": [
+            "bin/publish-core.mjs"
           ]
         }
       ],
       "requiresVerification": true,
-      "summary": "Detected impact areas: models. Verification is required."
+      "summary": "Detected impact areas: api-surface, models, publish-workflow. Verification is required."
     },
     "verificationPlan": {
       "shouldRun": true,
       "runPhase": "now",
-      "summary": "Detected impact areas: models. Verification is required. Run the required verification commands now against the generated SDK output.",
+      "summary": "Detected impact areas: api-surface, models, publish-workflow. Verification is required. Run the required verification commands now against the generated SDK output.",
       "steps": [
         {
           "id": "check",
           "title": "Unified package check",
           "required": true,
-          "rationale": "Validate the generated package with the unified publish helper. Triggered by: models.",
+          "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, publish-workflow.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -272,7 +393,7 @@
           "id": "build",
           "title": "Unified package build",
           "required": true,
-          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: models.",
+          "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, publish-workflow.",
           "workingDirectory": "D:\\sdkwork-space\\sdkwork-plugins\\sdks\\sdkwork-plugins-app-sdk\\sdkwork-plugins-app-sdk-typescript\\generated\\server-openapi",
           "command": "node",
           "args": [
@@ -303,11 +424,29 @@
       ]
     },
     "backedUpFiles": [
+      "src/api/base.d.ts",
+      "src/api/index.d.ts",
+      "src/api/paths.d.ts",
+      "src/api/plugins.d.ts",
+      "src/types/common.d.ts",
+      "src/types/field-error.d.ts",
       "src/types/index.d.ts",
+      "src/types/page-info.d.ts",
+      "src/types/plugin-artifact-drive-directory-source.d.ts",
+      "src/types/plugin-artifact-drive-file-source.d.ts",
+      "src/types/plugin-artifact-git-source.d.ts",
+      "src/types/plugin-artifact-source.d.ts",
+      "src/types/plugin-category-record.d.ts",
       "src/types/plugin-install-target.d.ts",
       "src/types/plugin-marketplace-metadata.d.ts",
       "src/types/plugin-media.d.ts",
-      "src/types/plugin-record.d.ts"
+      "src/types/plugin-record.d.ts",
+      "src/types/plugins-list-categories-response.d.ts",
+      "src/types/plugins-list-response.d.ts",
+      "src/types/plugins-retrieve-response.d.ts",
+      "src/types/problem-detail.d.ts",
+      "src/types/sdk-work-api-response.d.ts",
+      "src/types/sdk-work-platform-error-code.d.ts"
     ],
     "preservedLegacyFiles": false
   }

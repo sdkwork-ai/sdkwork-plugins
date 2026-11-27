@@ -34,6 +34,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import {
+  OFFICIAL_BUNDLES,
+  OFFICIAL_CATEGORY,
+  officialBundleForEntry,
+  officialCatalogEntry,
+} from './dsh_market_official_catalog.mjs';
+
 export const DEFAULT_CATALOG_URL = 'https://awesome-dsh-plugin.com/plugins.json';
 export const DEFAULT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const CATALOG_SEED = 'database/seeds/common/003_dsh_market_catalog.sql';
@@ -48,9 +55,11 @@ const MEDIA_ID_BASE = 9350000000000n;
 const CAPABILITY_ID_BASE = 9360000000000n;
 const ID_SPACE = 1000000000000n;
 
-const NPM_PACKAGE = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/iu;
+const NPM_PACKAGE = /^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/u;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
-const ARCHIVE_PATH = /\.(?:tgz|tar\.gz|zip)$/iu;
+const ARCHIVE_PATH = /\.(?:tgz|tar\.gz)$/u;
+const GITHUB_NAME = /^[A-Za-z0-9_.-]+$/u;
+const GITHUB_PATH = /^[A-Za-z0-9_./-]+$/u;
 
 /**
  * Every field the registry publishes today. A `raw` projection keeps only keys
@@ -59,8 +68,9 @@ const ARCHIVE_PATH = /\.(?:tgz|tar\.gz|zip)$/iu;
  */
 export const KNOWN_ENTRY_KEYS = new Set([
   'added', 'capabilities', 'capabilityCheckedAt', 'capabilityRedLines', 'category',
-  'description', 'downloads', 'downloadsCheckedAt', 'downloadsEnd', 'downloadsStart',
-  'icon', 'install', 'name', 'npm', 'owner', 'page', 'screenshots', 'stars',
+  'description', 'deprecated', 'downloads', 'downloadsCheckedAt', 'downloadsEnd', 'downloadsStart',
+  'githubReleaseDownloads', 'icon', 'install', 'name', 'npm', 'owner', 'page', 'previousNpm',
+  'releaseManifest', 'replacement', 'screenshots', 'stars',
   'starsCheckedAt', 'tarball', 'url', 'version',
 ]);
 
@@ -165,6 +175,10 @@ function slugFromUrl(catalogUrl) {
   return parts.join('-').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '');
 }
 
+function safeRepositoryPath(parts) {
+  return parts.length > 0 && parts.every(part => part !== '' && part !== '.' && part !== '..' && GITHUB_PATH.test(part));
+}
+
 /**
  * Parse the registry `url` into the Git target dsh-market installs from.
  * A GitHub tree URL carries the curated ref and the package directory.
@@ -172,30 +186,38 @@ function slugFromUrl(catalogUrl) {
  * @returns repository URL, optional ref, optional directory.
  */
 function githubTarget(catalogUrl) {
+  const invalid = { repositoryUrl: null, repositoryPath: null, repositoryRef: null };
+  // A URL parser folds `.`/`..` segments and empty segments away, so the raw
+  // path is validated first; otherwise a traversal path would be silently
+  // rewritten into a different install target.
+  const rawPath = /^https:\/\/github\.com(\/[^?#]*)/iu.exec(catalogUrl)?.[1];
+  if (rawPath === undefined) return invalid;
+  const rawSegments = rawPath.replace(/\/+$/u, '').split('/').slice(1);
+  if (rawSegments.some(segment => segment === '' || segment === '.' || segment === '..'
+    || segment.toLowerCase() === '%2e' || segment.toLowerCase() === '%2e%2e')) return invalid;
   let parsed;
   try {
     parsed = new URL(catalogUrl);
   } catch {
-    return { repositoryUrl: catalogUrl, repositoryPath: null, repositoryRef: null };
+    return invalid;
   }
-  if (parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
-    return { repositoryUrl: catalogUrl, repositoryPath: null, repositoryRef: null };
-  }
-  if (parsed.hostname.toLowerCase() !== 'github.com') {
-    return { repositoryUrl: `${parsed.origin}${parsed.pathname}`.replace(/\/+$/u, ''), repositoryPath: null, repositoryRef: null };
-  }
-  const parts = parsed.pathname.split('/').filter(Boolean);
-  if (parts.length < 2) return { repositoryUrl: catalogUrl, repositoryPath: null, repositoryRef: null };
+  if (parsed.protocol !== 'https:'
+    || parsed.hostname.toLowerCase() !== 'github.com'
+    || parsed.port !== ''
+    || parsed.username !== ''
+    || parsed.password !== ''
+    || parsed.search !== ''
+    || parsed.hash !== '') return invalid;
+  const parts = parsed.pathname.replace(/\/+$/u, '').split('/').slice(1);
+  if (parts.length < 2 || !parts.slice(0, 2).every(part => GITHUB_NAME.test(part))) return invalid;
   const owner = parts[0];
   const repository = parts[1].replace(/\.git$/iu, '');
   const repositoryUrl = `https://github.com/${owner}/${repository}`;
   if (parts.length === 2) return { repositoryUrl, repositoryPath: null, repositoryRef: null };
-  if (parts[2] !== 'tree' || parts.length < 4) return { repositoryUrl: catalogUrl, repositoryPath: null, repositoryRef: null };
-  return {
-    repositoryUrl,
-    repositoryRef: parts[3],
-    repositoryPath: parts.length > 4 ? parts.slice(4).join('/') : null,
-  };
+  if (parts[2] !== 'tree' || parts.length < 5 || !GITHUB_NAME.test(parts[3])) return invalid;
+  const directory = parts.slice(4);
+  if (!safeRepositoryPath(directory)) return invalid;
+  return { repositoryUrl, repositoryPath: directory.join('/'), repositoryRef: parts[3] };
 }
 
 /** A clone URL pnpm accepts: https, no credentials, query, or fragment, and a repository path. */
@@ -217,33 +239,26 @@ function isPackageName(value) {
   return typeof value === 'string' && value.length <= 214 && NPM_PACKAGE.test(value);
 }
 
-function isArchiveUrl(value) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'https:'
-      && parsed.username === ''
-      && parsed.password === ''
-      && parsed.hash === ''
-      && ARCHIVE_PATH.test(parsed.pathname);
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Whether a release asset belongs to the entry's own repository.
- * `/releases/latest/download/<file>` is accepted: dsh-market curates it and
- * pnpm would otherwise have to clone the repository for every install.
+ * Whether an HTTPS GitHub Release archive belongs to the entry's own
+ * repository. Release CDN URLs are rejected because they cannot be bound to the
+ * repository identity published by the entry.
  */
 function releaseArchiveBelongsToRepository(archive, repositoryUrl) {
-  if (typeof repositoryUrl !== 'string' || !isArchiveUrl(archive)) return false;
+  if (typeof repositoryUrl !== 'string') return false;
   try {
     const archiveUrl = new URL(archive);
     const repository = new URL(repositoryUrl);
-    if (archiveUrl.hostname.toLowerCase() !== 'github.com' || repository.hostname.toLowerCase() !== 'github.com') return false;
     if (archiveUrl.protocol !== 'https:' || repository.protocol !== 'https:') return false;
+    if (archiveUrl.hostname.toLowerCase() !== 'github.com' || repository.hostname.toLowerCase() !== 'github.com') return false;
+    if (archiveUrl.port !== '' || archiveUrl.username !== '' || archiveUrl.password !== '' || archiveUrl.search !== '' || archiveUrl.hash !== '') return false;
     const repositoryPath = repository.pathname.replace(/\.git$/iu, '').replace(/\/+$/u, '');
-    return archiveUrl.pathname.startsWith(`${repositoryPath}/releases/`);
+    const repositoryParts = repositoryPath.split('/').filter(Boolean);
+    const archiveParts = archiveUrl.pathname.split('/').filter(Boolean);
+    if (repositoryParts.length !== 2 || archiveParts.length < 4 || !ARCHIVE_PATH.test(archiveUrl.pathname)) return false;
+    return archiveParts[0].toLowerCase() === repositoryParts[0].toLowerCase()
+      && archiveParts[1].toLowerCase() === repositoryParts[1].toLowerCase()
+      && archiveParts[2] === 'releases';
   } catch {
     return false;
   }
@@ -323,6 +338,91 @@ function capabilitiesFor(entry, capabilityIds) {
   }));
 }
 
+function officialEntryFor(bundle, revision, categoryId, ids, usedKeys) {
+  const entry = officialCatalogEntry(bundle);
+  const pluginKey = `sdkwork-official-${bundle.packageName.slice('@deepseek-ai/'.length)}`;
+  if (usedKeys.has(pluginKey)) throw new Error(`duplicate Official plugin key ${pluginKey}`);
+  usedKeys.add(pluginKey);
+  const repositoryUrl = 'https://github.com/deepseek-ai/deepseek-harness';
+  const metadata = {
+    provider: 'sdkwork',
+    source: 'sdkwork-official-bundles',
+    catalogUrl: entry.url,
+    pageUrl: null,
+    owner: entry.owner,
+    npmPackage: entry.npm,
+    tarballUrl: null,
+    repositoryUrl,
+    repositoryPath: bundle.packagePath,
+    repositoryRef: 'main',
+    version: entry.version,
+    install: null,
+    categories: ['official'],
+    added: null,
+    stars: 0,
+    starsCheckedAt: null,
+    downloads: 0,
+    downloadsStart: null,
+    downloadsEnd: null,
+    downloadsCheckedAt: null,
+    githubReleaseDownloads: null,
+    releaseManifest: null,
+    iconUrl: null,
+    screenshots: [],
+    capabilities: [],
+    capabilityRedLines: [],
+    capabilityCheckedAt: null,
+    deprecated: false,
+    replacement: null,
+    previousNpm: [],
+    catalogRevision: revision,
+    release: null,
+    recentCommits: [],
+    updatesCheckedAt: null,
+    raw: {},
+  };
+  return {
+    id: stableId(PLUGIN_ID_BASE, entry.url, ids.pluginIds),
+    uuid: stableUuid('plugin.sdkwork.official', entry.url),
+    pluginKey,
+    provider: 'sdkwork',
+    catalogProvider: 'sdkwork',
+    catalogUrl: entry.url,
+    catalogPageUrl: null,
+    ownerLogin: entry.owner,
+    npmPackage: entry.npm,
+    tarballUrl: null,
+    repositoryUrl,
+    repositoryPath: bundle.packagePath,
+    repositoryRef: 'main',
+    registryVersion: entry.version,
+    addedOn: null,
+    starsCount: 0,
+    starsCheckedAt: null,
+    downloadsCount: 0,
+    downloadsStart: null,
+    downloadsEnd: null,
+    downloadsCheckedAt: null,
+    isDeprecated: false,
+    replacedByCatalogUrl: null,
+    catalogRevision: revision,
+    categoryCode: OFFICIAL_CATEGORY.code,
+    categoryId,
+    name: entry.name,
+    description: entry.description['en-US'],
+    nameLocales: entry.nameLocales,
+    descriptionLocales: entry.description,
+    iconUrl: null,
+    usageCount: 0,
+    versionLabel: entry.version,
+    metadata,
+    installTargets: installTargetsFor(entry, ids.targetIds),
+    media: mediaFor(entry, ids.mediaIds),
+    capabilities: capabilitiesFor(entry, ids.capabilityIds),
+    tags: ['official'],
+  };
+}
+
 /**
  * Project the registry document onto the SDKWork Plugins initialization data.
  * @param document parsed `plugins.json`.
@@ -339,26 +439,41 @@ export function normalizeCatalog(document, updates = undefined) {
   // The changelog document is keyed by repository URL, the same origin the
   // entry's own repository facts name.
   const updatesByRepository = updates?.updates && typeof updates.updates === 'object' ? updates.updates : {};
+  // An upstream row that claims an Official URL or npm identity is replaced by
+  // the authoritative SDKWork record below rather than emitted twice.
+  const marketEntries = document.plugins.filter(entry => officialBundleForEntry(entry) === null);
 
-  // Categories keep the registry's own order; the id band leaves room for
-  // product categories, which are seeded separately.
+  // Registry categories retain their first-seen sort position after the
+  // SDKWork-owned Official category.
   const categoryCodes = new Map();
-  for (const entry of document.plugins) {
+  for (const entry of marketEntries) {
     for (const code of normalizedList(entry.category)) {
+      if (code === OFFICIAL_CATEGORY.code) continue;
       if (!categoryCodes.has(code)) categoryCodes.set(code, categoryCodes.size);
     }
   }
   const categoryIds = new Set();
-  const categories = [...categoryCodes.keys()].sort().map((code, index) => ({
-    code,
-    id: stableId(CATEGORY_ID_BASE, code, categoryIds),
-    uuid: stableUuid('cat.dsh-market', code),
-    sortOrder: 1000 + (categoryCodes.get(code) ?? index),
-    labels: {
-      'zh-CN': optionalString(categoryLabels[code]?.zh) ?? code,
-      'en-US': optionalString(categoryLabels[code]?.en) ?? code,
+  const categories = [
+    {
+      code: OFFICIAL_CATEGORY.code,
+      id: stableId(CATEGORY_ID_BASE, OFFICIAL_CATEGORY.code, categoryIds),
+      uuid: stableUuid('cat.sdkwork.official', OFFICIAL_CATEGORY.code),
+      sortOrder: OFFICIAL_CATEGORY.sortOrder,
+      labels: OFFICIAL_CATEGORY.labels,
+      taxonomySource: OFFICIAL_CATEGORY.taxonomySource,
     },
-  }));
+    ...[...categoryCodes.keys()].sort().map((code, index) => ({
+      code,
+      id: stableId(CATEGORY_ID_BASE, code, categoryIds),
+      uuid: stableUuid('cat.dsh-market', code),
+      sortOrder: 1000 + (categoryCodes.get(code) ?? index),
+      labels: {
+        'zh-CN': optionalString(categoryLabels[code]?.zh) ?? code,
+        'en-US': optionalString(categoryLabels[code]?.en) ?? code,
+      },
+      taxonomySource: 'dsh-market',
+    })),
+  ];
   const categoryByCode = new Map(categories.map(category => [category.code, category]));
 
   const pluginIds = new Set();
@@ -367,7 +482,7 @@ export function normalizeCatalog(document, updates = undefined) {
   // Stable plugin keys: a readable slug of the unique catalog URL, with a
   // deterministic suffix on every member of a colliding group so the key can
   // never depend on catalog order.
-  const baseKeys = document.plugins.map(entry => {
+  const baseKeys = marketEntries.map(entry => {
     const slug = slugFromUrl(optionalString(entry.url) ?? '');
     const base = `dsh-${slug === '' ? `entry-${sha256(optionalString(entry.url) ?? '').slice(0, 8)}` : slug}`;
     return base.slice(0, 118).replace(/-+$/u, '');
@@ -381,14 +496,14 @@ export function normalizeCatalog(document, updates = undefined) {
   const keys = baseKeys.map((key, index) => {
     const collision = (groups.get(key)?.length ?? 0) > 1;
     return collision
-      ? `${key}-${sha256(optionalString(document.plugins[index].url) ?? String(index)).slice(0, 8)}`
+      ? `${key}-${sha256(optionalString(marketEntries[index].url) ?? String(index)).slice(0, 8)}`
       : key;
   });
 
   const targetIds = new Set();
   const mediaIds = new Set();
   const capabilityIds = new Set();
-  const entries = document.plugins.map((entry, index) => {
+  const entries = marketEntries.map((entry, index) => {
     const catalogUrl = optionalString(entry.url);
     if (catalogUrl === null) throw new Error(`catalog entry ${index} has no url`);
     const pluginKey = keys[index];
@@ -465,6 +580,7 @@ export function normalizeCatalog(document, updates = undefined) {
       id: stableId(PLUGIN_ID_BASE, catalogUrl, pluginIds),
       uuid: stableUuid('plugin.dsh-market', catalogUrl),
       pluginKey,
+      provider: 'dsh-market',
       catalogProvider: 'dsh-market',
       catalogUrl,
       catalogPageUrl: metadata.pageUrl,
@@ -504,6 +620,14 @@ export function normalizeCatalog(document, updates = undefined) {
       tags: categoriesOfEntry,
     };
   });
+  const officialCategoryId = categories[0].id;
+  entries.push(...OFFICIAL_BUNDLES.map(bundle => officialEntryFor(
+    bundle,
+    revision,
+    officialCategoryId,
+    { pluginIds, targetIds, mediaIds, capabilityIds },
+    usedKeys,
+  )));
   return {
     revision,
     sourceUrl: optionalString(document.url) ?? DEFAULT_CATALOG_URL,
@@ -521,7 +645,7 @@ export function normalizeCatalog(document, updates = undefined) {
 }
 
 function categorySql(catalog) {
-  const rows = catalog.categories.map(category => `    (${category.id}, ${sqlText(category.uuid)}, ${ADMIN_TENANT_ID}, 0, ${sqlText(category.code)}, ${sqlText(category.code)}, NULL, '{}'::jsonb, '{}'::jsonb, ${category.sortOrder}, 1, 'dsh-market')`);
+  const rows = catalog.categories.map(category => `    (${category.id}, ${sqlText(category.uuid)}, ${ADMIN_TENANT_ID}, 0, ${sqlText(category.code)}, ${sqlText(category.code)}, NULL, '{}'::jsonb, '{}'::jsonb, ${category.sortOrder}, 1, ${sqlText(category.taxonomySource)})`);
   return `INSERT INTO ai_plugin_category (id, uuid, tenant_id, organization_id, category_code, name, description, name_locales_json, description_locales_json, sort_order, lifecycle_status, taxonomy_source)\nVALUES\n${rows.join(',\n')}\nON CONFLICT (tenant_id, category_code) DO UPDATE SET\n    taxonomy_source = EXCLUDED.taxonomy_source,\n    sort_order = EXCLUDED.sort_order,\n    updated_at = CURRENT_TIMESTAMP;`;
 }
 
@@ -531,6 +655,7 @@ function entryItem(entry) {
     id: entry.id,
     uuid: entry.uuid,
     pluginKey: entry.pluginKey,
+    provider: entry.provider,
     catalogProvider: entry.catalogProvider,
     catalogUrl: entry.catalogUrl,
     catalogPageUrl: entry.catalogPageUrl,
@@ -594,6 +719,36 @@ FROM jsonb_array_elements(${literal}::jsonb);
 
 ${categorySql(catalog)}
 
+-- Reappearing URLs keep their numeric id and uuid. Only rows owned by this
+-- catalog are resurrected; SDKWork product rows and other tenants are untouched.
+UPDATE ai_plugin AS plugin
+SET deleted_at = NULL,
+    lifecycle_status = 1,
+    updated_at = CURRENT_TIMESTAMP
+FROM dsh_market_catalog_payload AS catalog
+WHERE plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+  AND plugin.catalog_url = catalog.item->>'catalogUrl'
+  AND plugin.deleted_at IS NOT NULL
+  AND (plugin.catalog_provider = 'dsh-market'
+    OR (plugin.catalog_provider = 'sdkwork'
+      AND plugin.marketplace_metadata_json->>'source' = 'sdkwork-official-bundles'));
+
+-- The partial default-target unique index requires every old catalog default
+-- to be cleared before the incoming default rows are written.
+UPDATE ai_plugin_install_target AS target
+SET is_default = FALSE,
+    updated_at = CURRENT_TIMESTAMP
+FROM ai_plugin AS plugin
+WHERE target.tenant_id = ${ADMIN_TENANT_ID}
+  AND target.plugin_id = plugin.id
+  AND target.is_default
+  AND target.deleted_at IS NULL
+  AND plugin.deleted_at IS NULL
+  AND (plugin.catalog_provider = 'dsh-market'
+    OR (plugin.catalog_provider = 'sdkwork'
+      AND plugin.marketplace_metadata_json->>'source' = 'sdkwork-official-bundles'));
+
 WITH catalog AS (
     SELECT item FROM dsh_market_catalog_payload
 )
@@ -613,7 +768,9 @@ SELECT
     item->>'name', item->>'description', item->'nameLocales', item->'descriptionLocales',
     NULLIF(item->>'iconUrl', ''), (item->>'usageCount')::bigint, FALSE, 0, '{}'::jsonb, '{}'::jsonb,
     NULL, NULLIF(item->>'categoryId', '')::bigint, NULLIF(item->>'categoryCode', ''),
-    COALESCE(item->>'versionLabel', ''), 'dsh-market', 'custom', 'public', '{}'::jsonb, NULL,
+    COALESCE(item->>'versionLabel', ''), item->>'provider',
+    CASE WHEN item->>'provider' = 'sdkwork' THEN 'sdkwork-native' ELSE 'custom' END,
+    'public', '{}'::jsonb, NULL,
     item->'marketplaceMetadata', 'available', 1, item->'tags', '[]'::jsonb,
     item->>'catalogProvider', item->>'catalogUrl', NULLIF(item->>'catalogPageUrl', ''),
     NULLIF(item->>'ownerLogin', ''), NULLIF(item->>'npmPackage', ''), NULLIF(item->>'tarballUrl', ''),
@@ -625,7 +782,9 @@ SELECT
     COALESCE((item->>'isDeprecated')::boolean, FALSE), NULLIF(item->>'replacedByCatalogUrl', ''),
     NULLIF(item->>'catalogRevision', '')
 FROM catalog
-ON CONFLICT (tenant_id, plugin_key) DO UPDATE SET
+ON CONFLICT (tenant_id, catalog_provider, catalog_url)
+    WHERE catalog_url IS NOT NULL AND deleted_at IS NULL
+DO UPDATE SET
     uuid = EXCLUDED.uuid,
     name = EXCLUDED.name,
     description = EXCLUDED.description,
@@ -659,15 +818,36 @@ ON CONFLICT (tenant_id, plugin_key) DO UPDATE SET
     is_deprecated = EXCLUDED.is_deprecated,
     replaced_by_catalog_url = EXCLUDED.replaced_by_catalog_url,
     catalog_revision = EXCLUDED.catalog_revision,
+    lifecycle_status = 1,
+    deleted_at = NULL,
     updated_at = CURRENT_TIMESTAMP;
+
+-- Stale children of retained plugins are removed before upsert. They are hard
+-- deleted because the child uniqueness constraints include soft-deleted rows.
+DELETE FROM ai_plugin_install_target AS target
+USING ai_plugin AS plugin, dsh_market_catalog_payload AS catalog
+WHERE target.tenant_id = ${ADMIN_TENANT_ID}
+  AND target.plugin_id = plugin.id
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+  AND plugin.catalog_url = catalog.item->>'catalogUrl'
+  AND target.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(catalog.item->'installTargets') AS incoming
+    WHERE incoming->>'kind' = target.target_kind
+      AND incoming->>'spec' = target.target_spec
+  );
 
 WITH catalog AS (
     SELECT item FROM dsh_market_catalog_payload
 ), targets AS (
-    SELECT catalog.item->>'pluginKey' AS plugin_key,
-           (catalog.item->>'id')::bigint AS plugin_id,
-           target.value AS item
+    SELECT plugin.id AS plugin_id, target.value AS item
     FROM catalog
+    JOIN ai_plugin AS plugin
+      ON plugin.tenant_id = ${ADMIN_TENANT_ID}
+     AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+     AND plugin.catalog_url = catalog.item->>'catalogUrl'
     CROSS JOIN LATERAL jsonb_array_elements(catalog.item->'installTargets') AS target
 )
 INSERT INTO ai_plugin_install_target (
@@ -684,13 +864,34 @@ ON CONFLICT (tenant_id, plugin_id, target_kind, target_spec) DO UPDATE SET
     package_version = EXCLUDED.package_version,
     is_default = EXCLUDED.is_default,
     source_priority = EXCLUDED.source_priority,
+    lifecycle_status = 1,
+    deleted_at = NULL,
     updated_at = CURRENT_TIMESTAMP;
+
+DELETE FROM ai_plugin_media AS media
+USING ai_plugin AS plugin, dsh_market_catalog_payload AS catalog
+WHERE media.tenant_id = ${ADMIN_TENANT_ID}
+  AND media.plugin_id = plugin.id
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+  AND plugin.catalog_url = catalog.item->>'catalogUrl'
+  AND media.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(catalog.item->'media') AS incoming
+    WHERE incoming->>'kind' = media.media_kind
+      AND (incoming->>'sortOrder')::integer = media.sort_order
+  );
 
 WITH catalog AS (
     SELECT item FROM dsh_market_catalog_payload
 ), media AS (
-    SELECT (catalog.item->>'id')::bigint AS plugin_id, entry.value AS item
+    SELECT plugin.id AS plugin_id, entry.value AS item
     FROM catalog
+    JOIN ai_plugin AS plugin
+      ON plugin.tenant_id = ${ADMIN_TENANT_ID}
+     AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+     AND plugin.catalog_url = catalog.item->>'catalogUrl'
     CROSS JOIN LATERAL jsonb_array_elements(catalog.item->'media') AS entry
 )
 INSERT INTO ai_plugin_media (
@@ -702,13 +903,34 @@ SELECT
 FROM media
 ON CONFLICT (tenant_id, plugin_id, media_kind, sort_order) DO UPDATE SET
     url = EXCLUDED.url,
+    lifecycle_status = 1,
+    deleted_at = NULL,
     updated_at = CURRENT_TIMESTAMP;
+
+DELETE FROM ai_plugin_capability AS capability
+USING ai_plugin AS plugin, dsh_market_catalog_payload AS catalog
+WHERE capability.tenant_id = ${ADMIN_TENANT_ID}
+  AND capability.plugin_id = plugin.id
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+  AND plugin.catalog_url = catalog.item->>'catalogUrl'
+  AND capability.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(catalog.item->'capabilities') AS incoming
+    WHERE incoming->>'kind' = capability.disclosure_kind
+      AND incoming->>'code' = capability.capability_code
+  );
 
 WITH catalog AS (
     SELECT item FROM dsh_market_catalog_payload
 ), capabilities AS (
-    SELECT (catalog.item->>'id')::bigint AS plugin_id, entry.value AS item
+    SELECT plugin.id AS plugin_id, entry.value AS item
     FROM catalog
+    JOIN ai_plugin AS plugin
+      ON plugin.tenant_id = ${ADMIN_TENANT_ID}
+     AND plugin.catalog_provider = catalog.item->>'catalogProvider'
+     AND plugin.catalog_url = catalog.item->>'catalogUrl'
     CROSS JOIN LATERAL jsonb_array_elements(catalog.item->'capabilities') AS entry
 )
 INSERT INTO ai_plugin_capability (
@@ -722,7 +944,61 @@ FROM capabilities
 ON CONFLICT (tenant_id, plugin_id, disclosure_kind, capability_code) DO UPDATE SET
     checked_at = EXCLUDED.checked_at,
     sort_order = EXCLUDED.sort_order,
+    lifecycle_status = 1,
+    deleted_at = NULL,
     updated_at = CURRENT_TIMESTAMP;
+
+-- Only upstream-owned dsh-market rows are eligible for removal. Official and
+-- SDKWork-authored rows, installations, and other tenants are never deleted.
+UPDATE ai_plugin AS plugin
+SET lifecycle_status = 4,
+    deleted_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = 'dsh-market'
+  AND plugin.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM dsh_market_catalog_payload AS catalog
+    WHERE catalog.item->>'catalogUrl' = plugin.catalog_url
+      AND catalog.item->>'catalogProvider' = 'dsh-market'
+  );
+
+UPDATE ai_plugin_install_target AS target
+SET lifecycle_status = 4,
+    deleted_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+FROM ai_plugin AS plugin
+WHERE target.tenant_id = ${ADMIN_TENANT_ID}
+  AND target.plugin_id = plugin.id
+  AND target.deleted_at IS NULL
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = 'dsh-market'
+  AND plugin.deleted_at IS NOT NULL;
+
+UPDATE ai_plugin_media AS media
+SET lifecycle_status = 4,
+    deleted_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+FROM ai_plugin AS plugin
+WHERE media.tenant_id = ${ADMIN_TENANT_ID}
+  AND media.plugin_id = plugin.id
+  AND media.deleted_at IS NULL
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = 'dsh-market'
+  AND plugin.deleted_at IS NOT NULL;
+
+UPDATE ai_plugin_capability AS capability
+SET lifecycle_status = 4,
+    deleted_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+FROM ai_plugin AS plugin
+WHERE capability.tenant_id = ${ADMIN_TENANT_ID}
+  AND capability.plugin_id = plugin.id
+  AND capability.deleted_at IS NULL
+  AND plugin.tenant_id = ${ADMIN_TENANT_ID}
+  AND plugin.catalog_provider = 'dsh-market'
+  AND plugin.deleted_at IS NOT NULL;
 
 COMMIT;
 `;
@@ -731,7 +1007,7 @@ COMMIT;
 function localeCategorySql(catalog, locale) {
   const rows = catalog.categories.map(category => {
     const label = category.labels[locale] ?? category.code;
-    return `    (${sqlText(category.code)}, ${sqlText(label)}, ${sqlJson({ [locale]: label })})`;
+    return `    (${sqlText(category.code)}, ${sqlText(category.taxonomySource)}, ${sqlText(label)}, ${sqlJson({ [locale]: label })})`;
   });
   return `BEGIN;
 
@@ -741,9 +1017,9 @@ SET name = value.name,
     updated_at = CURRENT_TIMESTAMP
 FROM (VALUES
 ${rows.join(',\n')}
-) AS value(code, name, locales)
+) AS value(code, taxonomy_source, name, locales)
 WHERE category.tenant_id = ${ADMIN_TENANT_ID}
-  AND category.taxonomy_source = 'dsh-market'
+  AND category.taxonomy_source = value.taxonomy_source
   AND category.category_code = value.code;
 
 COMMIT;
@@ -756,7 +1032,7 @@ function localeCatalogSql(catalog, locale) {
       ? (entry.nameLocales['zh-CN'] ?? entry.name)
       : (entry.nameLocales[locale] ?? entry.name);
     const description = entry.descriptionLocales[locale] ?? entry.description ?? '';
-    return `    (${sqlText(entry.pluginKey)}, ${sqlText(name)}, ${sqlText(description)}, ${sqlJson({ [locale]: description })})`;
+    return `    (${sqlText(entry.catalogProvider)}, ${sqlText(entry.catalogUrl)}, ${sqlText(name)}, ${sqlText(description)}, ${sqlJson({ [locale]: description })})`;
   });
   return `BEGIN;
 
@@ -767,10 +1043,10 @@ SET name = value.name,
     updated_at = CURRENT_TIMESTAMP
 FROM (VALUES
 ${rows.join(',\n')}
-) AS value(key, name, description, locales)
+) AS value(provider, catalog_url, name, description, locales)
 WHERE plugin.tenant_id = ${ADMIN_TENANT_ID}
-  AND plugin.catalog_provider = 'dsh-market'
-  AND plugin.plugin_key = value.key;
+  AND plugin.catalog_provider = value.provider
+  AND plugin.catalog_url = value.catalog_url;
 
 COMMIT;
 `;
@@ -781,6 +1057,72 @@ async function writeFileEnsured(path, content) {
   await writeFile(path, content, 'utf8');
 }
 
+async function previousChangelog(root) {
+  let seed;
+  let snapshot;
+  try {
+    seed = await readFile(join(root, CATALOG_SEED), 'utf8');
+  } catch (error) {
+    // A first import has no prior release history to preserve.
+    if (error.code === 'ENOENT') return undefined;
+    throw error;
+  }
+  const marker = 'FROM jsonb_array_elements(';
+  const from = seed.indexOf(marker);
+  if (from === -1) return undefined;
+  const start = seed.indexOf("'", from + marker.length);
+  const end = seed.indexOf("'::jsonb", start);
+  if (start === -1 || end === -1) throw new Error('existing catalog seed payload literal is malformed');
+  const entries = JSON.parse(seed.slice(start + 1, end).replaceAll("''", "'"));
+  try {
+    snapshot = JSON.parse(await readFile(join(root, SNAPSHOT), 'utf8'));
+  } catch (error) {
+    // The seed still carries enough data to preserve per-repository history.
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const updates = {};
+  for (const entry of entries) {
+    const metadata = entry.marketplaceMetadata;
+    if (metadata?.release === null || metadata?.release === undefined) {
+      if ((metadata?.recentCommits?.length ?? 0) === 0) continue;
+    }
+    const key = metadata?.repositoryUrl ?? entry.catalogUrl;
+    updates[key] = {
+      release: metadata?.release ?? null,
+      commits: metadata?.recentCommits ?? [],
+      checkedAt: metadata?.updatesCheckedAt ?? undefined,
+    };
+  }
+  return {
+    url: snapshot?.source?.changelog?.sourceUrl ?? null,
+    updated: snapshot?.source?.changelog?.revision ?? null,
+    updates,
+  };
+}
+
+async function refreshLocaleChecksums(root, files) {
+  const manifestPath = join(root, 'database/seeds/seed.manifest.json');
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  } catch (error) {
+    // Generated catalogs can also target an isolated test directory.
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  for (const locale of ['zh-CN', 'en-US']) {
+    const localeSet = manifest.localeSets?.[locale];
+    if (localeSet === undefined) continue;
+    const paths = localeSet.files ?? [];
+    const content = paths.map(path => files.find(file => file.path === `database/seeds/${path}`)?.content ?? '').join('');
+    if (paths.some(path => files.find(file => file.path === `database/seeds/${path}`) === undefined)) {
+      throw new Error(`locale checksum manifest names unknown generated file for ${locale}`);
+    }
+    localeSet.checksum = `sha256:${sha256(content)}`;
+  }
+  await writeFileEnsured(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 /**
  * Regenerate every catalog asset and the recorded snapshot.
  * @param document parsed `plugins.json`.
@@ -789,7 +1131,7 @@ async function writeFileEnsured(path, content) {
  * @returns counts and checksums for the caller's report.
  */
 export async function generateCatalogAssets(document, root = DEFAULT_ROOT, updates = undefined) {
-  const catalog = normalizeCatalog(document, updates);
+  const catalog = normalizeCatalog(document, updates ?? await previousChangelog(root));
   const files = [
     { path: CATALOG_SEED, content: renderSeedSql(catalog) },
     { path: `database/seeds/locales/zh-CN/001_plugin_categories_display.sql`, content: localeCategorySql(catalog, 'zh-CN') },
@@ -802,6 +1144,7 @@ export async function generateCatalogAssets(document, root = DEFAULT_ROOT, updat
     await writeFileEnsured(join(root, file.path), file.content);
     checksums[file.path] = `sha256:${sha256(file.content)}`;
   }
+  await refreshLocaleChecksums(root, files);
   const snapshot = {
     schemaVersion: 1,
     kind: 'sdkwork.plugins.dsh-market.catalog-snapshot',
@@ -811,6 +1154,8 @@ export async function generateCatalogAssets(document, root = DEFAULT_ROOT, updat
       revision: catalog.revision,
       updated: catalog.updated,
       entryCount: catalog.count,
+      dshMarketEntryCount: catalog.entries.filter(entry => entry.catalogProvider === 'dsh-market').length,
+      officialEntryCount: catalog.entries.filter(entry => entry.catalogProvider === 'sdkwork').length,
       categoryCount: catalog.categories.length,
       installTargetCount: catalog.entries.reduce((total, entry) => total + entry.installTargets.length, 0),
       mediaCount: catalog.entries.reduce((total, entry) => total + entry.media.length, 0),

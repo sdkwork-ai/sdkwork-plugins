@@ -21,3 +21,6 @@ serde_json = { workspace = true }
 sdkwork-plugins-contract = { workspace = true }
 sdkwork-utils-rust = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

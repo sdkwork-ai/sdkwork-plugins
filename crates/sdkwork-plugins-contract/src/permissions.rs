@@ -10,7 +10,5 @@ pub const PERM_ADMIN_PLUGIN_READ: &str = "plugins.admin.plugin.read";
 pub const PERM_ADMIN_PLUGIN_MANAGE: &str = "plugins.admin.plugin.manage";
 /// Read the tenant plugin marketplace catalog.
 pub const PERM_MARKETPLACE_READ: &str = "plugins.marketplace.read";
-/// Reserved install permission. Installation runs in the client's Host
-/// profile, so no SDKWork route requires this code; it stays in the IAM
-/// catalog so existing grants remain resolvable.
+/// Synchronize confirmed plugin installations and removals from a Host.
 pub const PERM_MARKETPLACE_INSTALL: &str = "plugins.marketplace.install";

@@ -259,7 +259,7 @@ export function MarketplacePage({
 
       {loading && popular.length === 0 ? (
         <div className={styles.content} aria-busy="true" aria-label={messages.loading}>
-          <div className={styles.featured}><div className={styles.skeleton} /><div className={styles.skeleton} /></div>
+          <div className={styles.featured}><div className={styles.skeleton} /><div className={styles.skeleton} /><div className={styles.skeleton} /></div>
           <div className={styles.sectionHeading}>{messages.popular}</div>
           <div className={styles.pluginGrid}>{Array.from({ length: 9 }, (_, index) => <div key={index} className={styles.skeleton} />)}</div>
         </div>
@@ -278,17 +278,26 @@ export function MarketplacePage({
                 const { installation, state } = cardState(plugin);
                 const title = localizedText(plugin.featuredTitleLocales, locale) || localizedText(plugin.nameLocales, locale) || plugin.name;
                 const description = localizedText(plugin.featuredDescriptionLocales, locale) || localizedText(plugin.descriptionLocales, locale) || plugin.description || '';
+                // The card leads with its market category when the catalog
+                // resolves it, so the shelf does not repeat the section label
+                // on every card.
+                const category = plugin.categoryCode == null
+                  ? undefined
+                  : categories.find(entry => entry.categoryCode === plugin.categoryCode);
+                const image = plugin.featuredImageUrl || plugin.iconUrl;
                 return (
                   <article className={styles.featureCard} key={plugin.pluginKey}>
                     <span className={styles.featureCopy}>
-                      <span className={styles.eyebrow}>{messages.featured}</span>
+                      <span className={styles.eyebrow}>{category === undefined ? messages.featured : categoryName(category, locale)}</span>
                       {onOpenPlugin === undefined
                         ? <span className={styles.featureTitle}>{title}</span>
                         : <button type="button" className={styles.featureTitleLink} onClick={() => { onOpenPlugin(plugin); }}>{title}</button>}
                       <span className={styles.featureDescription}>{description}</span>
                       <InstallControls plugin={plugin} installation={installation} state={state} messages={messages} onInstall={onInstall} onUpdate={onUpdate} onRemove={onRemove} />
                     </span>
-                    {plugin.featuredImageUrl || plugin.iconUrl ? <img className={styles.featureImage} src={plugin.featuredImageUrl || plugin.iconUrl || ''} alt="" /> : null}
+                    {image === null || image === ''
+                      ? <span className={styles.featureFallback} aria-hidden="true">{plugin.name.slice(0, 1)}</span>
+                      : <img className={styles.featureImage} src={image} alt="" />}
                   </article>
                 );
               })}

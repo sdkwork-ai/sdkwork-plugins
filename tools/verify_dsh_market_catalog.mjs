@@ -20,6 +20,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DEFAULT_CATALOG_URL, SNAPSHOT } from './import_dsh_market_catalog.mjs';
+import { OFFICIAL_BUNDLES, officialBundleForEntry, officialCatalogUrl } from './dsh_market_official_catalog.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CATALOG_SEED = 'database/seeds/common/003_dsh_market_catalog.sql';
@@ -61,8 +62,10 @@ function same(left, right) {
  */
 export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) {
   if (!Array.isArray(registry.plugins)) fail('registry has no plugins array');
-  if (seed.length !== registry.plugins.length) {
-    fail(`seed holds ${seed.length} entries, registry publishes ${registry.plugins.length}`);
+  const marketEntries = registry.plugins.filter(entry => officialBundleForEntry(entry) === null);
+  const expectedEntries = marketEntries.length + OFFICIAL_BUNDLES.length;
+  if (seed.length !== expectedEntries) {
+    fail(`seed holds ${seed.length} entries, expected ${marketEntries.length} dsh-market plus ${OFFICIAL_BUNDLES.length} Official entries`);
   }
   const byUrl = new Map();
   const keys = new Set();
@@ -73,6 +76,7 @@ export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) 
   const capabilityIds = new Set();
   let defaultTargets = 0;
   let targets = 0;
+  let withoutInstallTargets = 0;
   let media = 0;
   let capabilities = 0;
 
@@ -93,11 +97,16 @@ export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) 
     byUrl.set(item.catalogUrl, item);
 
     const defaults = item.installTargets.filter(target => target.isDefault === true);
-    if (item.installTargets.length === 0) fail(`entry ${item.pluginKey} publishes no install target`);
-    if (defaults.length !== 1) fail(`entry ${item.pluginKey} publishes ${defaults.length} default install targets`);
-    if (item.installTargets[0] !== defaults[0]) fail(`entry ${item.pluginKey} default target is not first`);
-    defaultTargets += 1;
-    targets += item.installTargets.length;
+    if (item.installTargets.length === 0) {
+      // dsh-market's own parser rejects a non-ASCII curated subpath, so the
+      // catalog entry stays listable while it publishes no installable target.
+      withoutInstallTargets += 1;
+    } else {
+      if (defaults.length !== 1) fail(`entry ${item.pluginKey} publishes ${defaults.length} default install targets`);
+      if (item.installTargets[0] !== defaults[0]) fail(`entry ${item.pluginKey} default target is not first`);
+      defaultTargets += 1;
+      targets += item.installTargets.length;
+    }
     for (const target of item.installTargets) {
       if (targetIds.has(target.id)) fail(`duplicate install target id ${target.id}`);
       targetIds.add(target.id);
@@ -123,7 +132,17 @@ export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) 
     }
   }
 
-  for (const entry of registry.plugins) {
+  for (const bundle of OFFICIAL_BUNDLES) {
+    const url = officialCatalogUrl(bundle);
+    const item = byUrl.get(url);
+    if (item === undefined) fail(`Official bundle ${bundle.packageName} is missing from the seed`);
+    if (item.catalogProvider !== 'sdkwork' || item.npmPackage !== bundle.packageName) fail(`Official bundle ${bundle.packageName} has the wrong identity`);
+    if (item.registryVersion !== bundle.version) fail(`Official bundle ${bundle.packageName} has the wrong pinned version`);
+    if (!same(item.tags, ['official'])) fail(`Official bundle ${bundle.packageName} is outside the Official category`);
+    if (item.installTargets[0]?.spec !== `${bundle.packageName}@${bundle.version}`) fail(`Official bundle ${bundle.packageName} has the wrong default target`);
+  }
+
+  for (const entry of marketEntries) {
     const url = optionalString(entry.url);
     const item = byUrl.get(url);
     if (item === undefined) fail(`registry entry ${url} is missing from the seed`);    const description = entry.description && typeof entry.description === 'object' ? entry.description : {};
@@ -184,9 +203,12 @@ export function verifyCatalog(registry, seed, localeSeeds, updates = undefined) 
   }
   return {
     entries: seed.length,
+    dshMarketEntries: seed.filter(item => item.catalogProvider === 'dsh-market').length,
+    officialEntries: seed.filter(item => item.catalogProvider === 'sdkwork').length,
     categories: categories.length,
     installTargets: targets,
     defaultTargets,
+    withoutInstallTargets,
     media,
     capabilities,
     changelogEntries: seed.filter(item => (item.marketplaceMetadata?.release?.tag ?? null) !== null

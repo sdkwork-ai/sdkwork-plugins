@@ -33,7 +33,7 @@
   "baseUrl": "http://127.0.0.1:18101",
   "standardProfile": "sdkwork-v3",
   "fixedSdkVersion": "0.1.0",
-  "ownerOnlyOperationCount": 3,
+  "ownerOnlyOperationCount": 4,
   "operations": [
     {
       "method": "GET",
@@ -49,6 +49,11 @@
       "method": "GET",
       "operationId": "plugins.retrieve",
       "path": "/app/v3/api/plugins/{pluginKey}"
+    },
+    {
+      "method": "PUT",
+      "operationId": "plugins.syncInstallation",
+      "path": "/app/v3/api/plugin_installations/{hostId}"
     }
   ],
   "managedBy": "tools/plugins_sdk_generator_runner.mjs"

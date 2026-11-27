@@ -13,3 +13,4 @@ pub const OP_ADMIN_DELETE_PLUGIN: &str = "pluginsAdmin.deletePlugin";
 pub const OP_APP_LIST_PLUGINS: &str = "plugins.list";
 pub const OP_APP_RETRIEVE_PLUGIN: &str = "plugins.retrieve";
 pub const OP_APP_LIST_CATEGORIES: &str = "plugins.listCategories";
+pub const OP_APP_SYNC_INSTALLATION: &str = "plugins.syncInstallation";

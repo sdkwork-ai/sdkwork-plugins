@@ -4,32 +4,34 @@
   "source": {
     "catalogUrl": "https://awesome-dsh-plugin.com",
     "catalogName": "dsh-market",
-    "revision": "2026-11-24",
-    "updated": "2026-11-24",
-    "entryCount": 12961,
-    "categoryCount": 23,
-    "installTargetCount": 21806,
-    "mediaCount": 11570,
-    "capabilityCount": 39906,
+    "revision": "2026-11-26",
+    "updated": "2026-11-26",
+    "entryCount": 13464,
+    "dshMarketEntryCount": 13445,
+    "officialEntryCount": 19,
+    "categoryCount": 24,
+    "installTargetCount": 22704,
+    "mediaCount": 12096,
+    "capabilityCount": 41266,
     "deprecatedCount": 0,
     "changelog": {
       "sourceUrl": "https://awesome-dsh-plugin.com",
       "revision": "2026-11-24",
-      "repositoryCount": 12959,
-      "entryCount": 12959
+      "repositoryCount": 12462,
+      "entryCount": 12933
     }
   },
   "seed": {
     "file": "database/seeds/common/003_dsh_market_catalog.sql",
-    "checksum": "sha256:01d6d8899213584ddc36ebc6562084284b729a81309f114bdfb34a0a3c9ca2cc",
+    "checksum": "sha256:91e132ab51fade50b81609dfa08d3734c80e10a2ada9ad187187c81a8f71fa8b",
     "localeSeeds": {
       "zh-CN": [
-        "sha256:d49dc22f95ba148aeaaf7e9d1d6a1d2008c5fbc520b6dfe9f41337c4bbd20aaf",
-        "sha256:961718376407c5097963148ce6fc47679ae975bb2175ec1aa1c248f70f99655c"
+        "sha256:469364e7c947dccf6106fc0b150d86af9dde5e98156e2a45470b1758d030ba84",
+        "sha256:b4cdcc9f869996b2965d0ab8362ddafc07a1be30f5bacee8580bd13e62812c93"
       ],
       "en-US": [
-        "sha256:fca2a1350f90f298cd71b4a91850db4362c6223893c6b497b75ba6ed65eb11eb",
-        "sha256:9c457b1faff4b6435f05562110b9fe3e44aee45b4542800cb56eb6df0b6123af"
+        "sha256:2384a84c4e0bf4b31b222ce7493aa1877ae4721af6bc1db2d6c08a40a206f492",
+        "sha256:eacf36aec01c91f5ffbdda6109960fb6d698d2dedd219e6d9c5f71a82dcc5ba2"
       ]
     }
   },

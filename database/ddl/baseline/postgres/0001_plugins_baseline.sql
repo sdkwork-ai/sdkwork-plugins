@@ -3,7 +3,7 @@
 -- Application is in initialization state: full DDL lives here; migrations/ is reserved for post-GA changes.
 
 -- baseline source: ddl/baseline/postgres/0001_plugins_baseline.sql
--- Plugins module baseline DDL (postgres) — contract v1.1.0
+-- Plugins module baseline DDL (postgres) — contract v1.2.0
 --
 -- The baseline expresses the end state of the whole migration chain it was
 -- consolidated from (0002 artifact sources, 0003 marketplace metadata, 0004
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS ai_plugin_category (
     UNIQUE (tenant_id, category_code),
     CONSTRAINT ck_ai_plugin_category_name_locales_object CHECK (jsonb_typeof(name_locales_json) = 'object'),
     CONSTRAINT ck_ai_plugin_category_description_locales_object CHECK (jsonb_typeof(description_locales_json) = 'object'),
-    CONSTRAINT ck_ai_plugin_category_taxonomy_source CHECK (taxonomy_source IN ('product', 'dsh-market'))
+    CONSTRAINT ck_ai_plugin_category_taxonomy_source CHECK (taxonomy_source IN ('product', 'sdkwork', 'dsh-market'))
 );
 
 CREATE TABLE IF NOT EXISTS ai_plugin (
@@ -187,6 +187,36 @@ CREATE TABLE IF NOT EXISTS ai_plugin_capability (
     CONSTRAINT ck_ai_plugin_capability_code CHECK (capability_code <> '')
 );
 
+CREATE TABLE IF NOT EXISTS ai_plugin_installation (
+    id BIGINT NOT NULL PRIMARY KEY,
+    uuid VARCHAR(64) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    organization_id BIGINT NOT NULL DEFAULT 0,
+    user_id BIGINT NOT NULL,
+    host_id VARCHAR(128) NOT NULL,
+    plugin_id BIGINT,
+    plugin_key VARCHAR(128) NOT NULL,
+    package_name VARCHAR(214),
+    installed_version VARCHAR(64),
+    install_spec TEXT,
+    status VARCHAR(16) NOT NULL,
+    catalog_revision VARCHAR(32),
+    catalog_snapshot_json JSONB NOT NULL,
+    synchronized_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    removed_at TIMESTAMPTZ,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (uuid),
+    UNIQUE (tenant_id, organization_id, user_id, host_id, plugin_key),
+    CONSTRAINT ck_ai_plugin_installation_host CHECK (host_id <> ''),
+    CONSTRAINT ck_ai_plugin_installation_status CHECK (status IN ('installed', 'removed')),
+    CONSTRAINT ck_ai_plugin_installation_snapshot CHECK (jsonb_typeof(catalog_snapshot_json) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_plugin_installation_host
+    ON ai_plugin_installation (tenant_id, organization_id, user_id, host_id, status);
+
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_tenant
     ON ai_plugin_category (tenant_id, lifecycle_status);
 CREATE INDEX IF NOT EXISTS idx_ai_plugin_category_taxonomy
@@ -232,6 +262,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_plugin_capability_code
 
 -- folded migrations: migrations/postgres/0002_plugin_artifact_sources.up.sql,
 --   0003_plugin_marketplace_metadata.up.sql, 0004_plugin_marketplace_registry.up.sql,
---   0005_plugin_catalog_completeness.up.sql.
+--   0005_plugin_catalog_completeness.up.sql,
+--   0006_plugin_installation_sync.up.sql.
 -- The migration files stay committed: they are the upgrade path for databases
 -- provisioned before this fold, and their checksums are recorded as applied.

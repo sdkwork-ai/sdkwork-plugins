@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generateCatalogAssets, normalizeCatalog, renderSeedSql } from './import_dsh_market_catalog.mjs';
+import { generateCatalogAssets, installTargetsFor, KNOWN_ENTRY_KEYS, normalizeCatalog, renderSeedSql } from './import_dsh_market_catalog.mjs';
+import { OFFICIAL_BUNDLES, officialCatalogUrl } from './dsh_market_official_catalog.mjs';
 
 function document(plugins, categories = { tools: { en: 'Tools', zh: '工具' }, ui: { en: 'UI', zh: '界面' } }) {
   return { url: 'https://awesome-dsh-plugin.com', updated: '2026-11-24', categories, plugins };
+}
+
+function marketEntry(catalog) {
+  return catalog.entries.find(entry => entry.catalogProvider === 'dsh-market');
 }
 
 const DEMO = {
@@ -27,7 +32,7 @@ const DEMO = {
 
 test('projects every registry field and the install target dsh-market uses', () => {
   const catalog = normalizeCatalog(document([DEMO]));
-  const [entry] = catalog.entries;
+  const entry = marketEntry(catalog);
 
   assert.equal(entry.pluginKey, 'dsh-sdkwork-demo-packages-plugin');
   assert.equal(entry.catalogUrl, DEMO.url);
@@ -87,6 +92,125 @@ test('installs a release archive only when it belongs to the curated repository'
   assert.deepEqual(foreign.installTargets.map(target => target.kind), ['git']);
 });
 
+test('accepts only own-repository HTTPS GitHub Release tgz and tar.gz archives', () => {
+  const base = { ...DEMO, npm: null, version: null, url: 'https://github.com/sdkwork/demo' };
+  const accepted = [
+    'https://github.com/sdkwork/demo/releases/latest/download/demo.tgz',
+    'https://github.com/sdkwork/demo/releases/download/v1.2.3/demo.tar.gz',
+  ];
+  for (const tarball of accepted) {
+    const targets = installTargetsFor({ ...base, tarball }, new Set());
+    assert.deepEqual(targets.map(target => target.kind), ['archive', 'git']);
+  }
+  const rejected = [
+    'https://github.com/sdkwork/demo/releases/latest/download/demo.zip',
+    'https://github.com/sdkwork/demo/releases/latest/download/demo.tgz?download=1',
+    'https://github.com/sdkwork/demo/releases/latest/download/demo.tgz#asset',
+    'http://github.com/sdkwork/demo/releases/latest/download/demo.tgz',
+    'https://github.com/sdkwork/demo-other/releases/latest/download/demo.tgz',
+    'https://github.com/other/demo/releases/latest/download/demo.tgz',
+    'https://github.com/sdkwork/demo/archive/refs/tags/v1/demo.tgz',
+    'https://codeload.github.com/sdkwork/demo/tar.gz/refs/tags/v1',
+  ];
+  for (const tarball of rejected) {
+    const targets = installTargetsFor({ ...base, tarball }, new Set());
+    assert.deepEqual(targets.map(target => target.kind), ['git'], tarball);
+  }
+});
+
+test('keeps registry, archive, git precedence and ignores display-only install text', () => {
+  const targets = installTargetsFor({
+    ...DEMO,
+    npm: '@sdkwork/demo',
+    tarball: 'https://github.com/sdkwork/demo/releases/latest/download/demo.tgz',
+    install: 'dsh plugin add https://attacker.invalid/plugin.tgz',
+  }, new Set());
+  assert.deepEqual(targets.map(target => [target.kind, target.isDefault]), [
+    ['registry', true], ['archive', false], ['git', false],
+  ]);
+  assert.equal(targets[0].spec, '@sdkwork/demo@1.2.3');
+  assert.equal(targets[1].spec, 'archive+https://github.com/sdkwork/demo/releases/latest/download/demo.tgz');
+  assert.equal(targets[2].spec, 'git+https://github.com/sdkwork/demo.git#main&path:/packages/plugin');
+  assert.ok(targets.every(target => !target.spec.includes('attacker.invalid') && !target.spec.startsWith('github:')));
+  assert.deepEqual(installTargetsFor({ ...DEMO, npm: '@SDKWork/Demo' }, new Set()).map(target => target.kind), ['git']);
+});
+
+test('rejects malformed GitHub repository and tree targets', () => {
+  const urls = [
+    'http://github.com/sdkwork/demo',
+    'https://gitlab.com/sdkwork/demo',
+    'https://github.com/sdkwork/demo/tree/main',
+    'https://github.com/sdkwork/demo/tree/main/packages/../plugin',
+    'https://github.com/sdkwork/demo/tree/main/packages//plugin',
+    'https://github.com/sdkwork/demo?tab=readme',
+    'https://user@github.com/sdkwork/demo',
+  ];
+  for (const url of urls) {
+    assert.deepEqual(installTargetsFor({ ...DEMO, npm: null, url }, new Set()), [], url);
+  }
+});
+
+test('projects the additional release metadata once instead of duplicating it in raw', () => {
+  const entry = marketEntry(normalizeCatalog(document([{
+    ...DEMO,
+    deprecated: true,
+    replacement: 'https://github.com/sdkwork/replacement',
+    previousNpm: ['@sdkwork/old-demo'],
+    githubReleaseDownloads: 321,
+    releaseManifest: { assets: [{ name: 'demo.tgz', digest: 'sha256:abc' }] },
+  }])));
+  for (const key of ['deprecated', 'replacement', 'previousNpm', 'githubReleaseDownloads', 'releaseManifest']) {
+    assert.ok(KNOWN_ENTRY_KEYS.has(key), key);
+  }
+  assert.equal(entry.metadata.deprecated, true);
+  assert.equal(entry.metadata.replacement, 'https://github.com/sdkwork/replacement');
+  assert.deepEqual(entry.metadata.previousNpm, ['@sdkwork/old-demo']);
+  assert.equal(entry.metadata.githubReleaseDownloads, 321);
+  assert.deepEqual(entry.metadata.releaseManifest, { assets: [{ name: 'demo.tgz', digest: 'sha256:abc' }] });
+  assert.equal(entry.isDeprecated, true);
+  assert.deepEqual(entry.metadata.raw, {});
+});
+
+test('emits the Official category and all 19 authoritative bundles first', () => {
+  const catalog = normalizeCatalog(document([DEMO]));
+  const [official] = catalog.categories;
+  assert.equal(official.code, 'official');
+  assert.equal(official.sortOrder, 0);
+  assert.equal(official.taxonomySource, 'sdkwork');
+  assert.deepEqual(official.labels, { 'zh-CN': '官方插件', 'en-US': 'Official plugins' });
+  assert.ok(catalog.categories.slice(1).every(category => category.sortOrder > official.sortOrder));
+  const entries = catalog.entries.filter(entry => entry.catalogProvider === 'sdkwork');
+  assert.equal(entries.length, 19);
+  assert.deepEqual(entries.map(entry => entry.npmPackage), OFFICIAL_BUNDLES.map(bundle => bundle.packageName));
+  for (const [index, entry] of entries.entries()) {
+    const bundle = OFFICIAL_BUNDLES[index];
+    assert.equal(entry.categoryCode, 'official');
+    assert.equal(entry.categoryId, official.id);
+    assert.equal(entry.catalogUrl, officialCatalogUrl(bundle));
+    assert.equal(entry.registryVersion, bundle.version);
+    assert.equal(entry.nameLocales['zh-CN'], bundle.title['zh-CN']);
+    assert.equal(entry.descriptionLocales['en-US'], bundle.description['en-US']);
+    assert.deepEqual(entry.installTargets.map(target => target.spec), [
+      `${bundle.packageName}@${bundle.version}`,
+      `git+https://github.com/deepseek-ai/deepseek-harness.git#main&path:/${bundle.packagePath}`,
+    ]);
+    assert.equal(entry.installTargets[0].isDefault, true);
+  }
+});
+
+test('deduplicates later dsh-market Official rows by catalog URL or npm identity', () => {
+  const bundle = OFFICIAL_BUNDLES[0];
+  const catalog = normalizeCatalog(document([
+    DEMO,
+    { ...DEMO, name: 'Official duplicate', url: officialCatalogUrl(bundle), npm: bundle.packageName, category: ['tools'] },
+    { ...DEMO, name: 'npm duplicate', url: 'https://github.com/other/mirror', npm: bundle.packageName, category: ['ui'] },
+  ]));
+  assert.equal(catalog.entries.filter(entry => entry.catalogProvider === 'dsh-market').length, 1);
+  assert.equal(catalog.entries.filter(entry => entry.npmPackage === bundle.packageName).length, 1);
+  assert.equal(catalog.entries.filter(entry => entry.catalogUrl === officialCatalogUrl(bundle)).length, 1);
+  assert.equal(catalog.entries.find(entry => entry.npmPackage === bundle.packageName).catalogProvider, 'sdkwork');
+});
+
 test('derives stable ids and keys that do not depend on catalog order', () => {
   const entries = [
     { ...DEMO, name: 'A', url: 'https://github.com/sdkwork/a' },
@@ -137,6 +261,58 @@ test('renders a transactional seed with one payload and no executable catalog co
   assert.doesNotMatch(sql, /\$dsh_market_catalog\$/);
 });
 
+test('renders idempotent URL-based reconciliation with default replacement and stale-child cleanup', () => {
+  const sql = renderSeedSql(normalizeCatalog(document([DEMO])));
+  assert.match(sql, /ON CONFLICT \(tenant_id, catalog_provider, catalog_url\)/);
+  assert.match(sql, /WHERE catalog_url IS NOT NULL AND deleted_at IS NULL/);
+  assert.doesNotMatch(sql, /ON CONFLICT \(tenant_id, plugin_key\)/);
+  assert.match(sql, /UPDATE ai_plugin_install_target AS target\s+SET is_default = FALSE/);
+  assert.match(sql, /DELETE FROM ai_plugin_install_target AS target/);
+  assert.match(sql, /DELETE FROM ai_plugin_media AS media/);
+  assert.match(sql, /DELETE FROM ai_plugin_capability AS capability/);
+  assert.match(sql, /jsonb_array_elements\(catalog\.item->'installTargets'\)/);
+  assert.match(sql, /jsonb_array_elements\(catalog\.item->'media'\)/);
+  assert.match(sql, /jsonb_array_elements\(catalog\.item->'capabilities'\)/);
+  assert.match(sql, /lifecycle_status = 1,\s+deleted_at = NULL/);
+});
+
+test('soft-deletes only removed upstream plugins and their children without touching installations', () => {
+  const sql = renderSeedSql(normalizeCatalog(document([DEMO])));
+  assert.match(sql, /UPDATE ai_plugin AS plugin\s+SET lifecycle_status = 4,[\s\S]*?plugin\.catalog_provider = 'dsh-market'[\s\S]*?NOT EXISTS/);
+  assert.match(sql, /plugin\.tenant_id = 100001/);
+  assert.doesNotMatch(sql, /DELETE FROM ai_plugin\b/);
+  assert.doesNotMatch(sql, /ai_plugin_installation/);
+  for (const table of ['ai_plugin_install_target', 'ai_plugin_media', 'ai_plugin_capability']) {
+    assert.match(sql, new RegExp(`UPDATE ${table} AS [\\s\\S]*?lifecycle_status = 4`));
+  }
+  assert.match(sql, /plugin\.marketplace_metadata_json->>'source' = 'sdkwork-official-bundles'/);
+});
+
+test('preserves recorded changelog when regenerated without an updates document', async () => {
+  const { mkdtemp, readFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const root = await mkdtemp(join(tmpdir(), 'dsh-market-history-'));
+  const updates = {
+    url: 'https://awesome-dsh-plugin.com/updates.json',
+    updated: '2026-11-24',
+    updates: {
+      'https://github.com/sdkwork/demo': {
+        release: { tag: 'v1.2.3', body: 'Keep this release', publishedAt: '2026-11-09T15:36:26Z' },
+        commits: [{ sha: 'a'.repeat(40), message: 'release', date: '2026-11-13T08:44:25Z' }],
+        checkedAt: '2026-11-24',
+      },
+    },
+  };
+  await generateCatalogAssets(document([DEMO]), root, updates);
+  const { snapshot } = await generateCatalogAssets({ ...document([DEMO]), updated: '2026-11-26' }, root);
+  assert.equal(snapshot.source.revision, '2026-11-26');
+  assert.equal(snapshot.source.changelog.revision, '2026-11-24');
+  assert.equal(snapshot.source.changelog.entryCount, 1);
+  const sql = await readFile(join(root, 'database/seeds/common/003_dsh_market_catalog.sql'), 'utf8');
+  assert.match(sql, /Keep this release/);
+});
+
 test('writes the locale display sets and the snapshot from one run', async () => {
   const { mkdtemp } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
@@ -144,7 +320,9 @@ test('writes the locale display sets and the snapshot from one run', async () =>
   const { readFile } = await import('node:fs/promises');
   const root = await mkdtemp(join(tmpdir(), 'dsh-market-catalog-'));
   const { snapshot } = await generateCatalogAssets(document([DEMO]), root);
-  assert.equal(snapshot.source.entryCount, 1);
+  assert.equal(snapshot.source.entryCount, 20);
+  assert.equal(snapshot.source.dshMarketEntryCount, 1);
+  assert.equal(snapshot.source.officialEntryCount, 19);
   const zh = await readFile(join(root, 'database/seeds/locales/zh-CN/002_plugin_catalog_display.sql'), 'utf8');
   assert.match(zh, /'示例'/);
   const en = await readFile(join(root, 'database/seeds/locales/en-US/002_plugin_catalog_display.sql'), 'utf8');
@@ -171,7 +349,7 @@ test('carries the release history the market shows for a repository', () => {
       },
     },
   });
-  const [entry] = catalog.entries;
+  const entry = marketEntry(catalog);
   assert.equal(entry.metadata.release.tag, 'v1.2.3');
   assert.equal(entry.metadata.release.body, 'Stable install paths');
   assert.equal(entry.metadata.recentCommits.length, 1);

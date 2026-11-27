@@ -5,7 +5,10 @@ use std::sync::Arc;
 use sdkwork_id_core::SnowflakeIdGenerator;
 use sdkwork_intelligence_plugins_repository_sqlx::SqlxPluginsRepository;
 use sdkwork_intelligence_plugins_service::{CreatePluginCommand, PluginsService};
-use sdkwork_plugins_contract::{PluginArtifactSource, PluginImplementationType, PluginVisibility};
+use sdkwork_plugins_contract::{
+    PluginArtifactSource, PluginImplementationType, PluginInstallationAction,
+    PluginInstallationStatus, PluginInstallationSyncCommand, PluginVisibility,
+};
 
 const BASELINE: &str =
     include_str!("../../../database/ddl/baseline/postgres/0001_plugins_baseline.sql");
@@ -19,6 +22,8 @@ const MARKETPLACE_REGISTRY_MIGRATION: &str =
     include_str!("../../../database/migrations/postgres/0004_plugin_marketplace_registry.up.sql");
 const CATALOG_COMPLETENESS_MIGRATION: &str =
     include_str!("../../../database/migrations/postgres/0005_plugin_catalog_completeness.up.sql");
+const INSTALLATION_MIGRATION: &str =
+    include_str!("../../../database/migrations/postgres/0006_plugin_installation_sync.up.sql");
 
 /// The dsh-market payload and the locale display sets are tens of megabytes,
 /// so the catalog test reads them from the repository at run time instead of
@@ -472,7 +477,10 @@ async fn adds_and_backfills_marketplace_metadata_idempotently() {
     .fetch_one(&pool)
     .await
     .expect("read same-key plugin in another tenant");
-    assert!(!other_tenant_featured, "seed presentation must stay tenant-scoped");
+    assert!(
+        !other_tenant_featured,
+        "seed presentation must stay tenant-scoped"
+    );
     let category_locales: serde_json::Value = sqlx::query_scalar(
         "SELECT name_locales_json FROM ai_plugin_category WHERE category_code = 'code-development'",
     )
@@ -616,7 +624,10 @@ async fn seeds_the_complete_dsh_market_catalog_idempotently() {
     apply_sql(&pool, BASELINE, "apply plugin baseline").await;
     for (sql, purpose) in [
         (MIGRATION, "apply artifact source migration"),
-        (MARKETPLACE_MIGRATION, "apply marketplace metadata migration"),
+        (
+            MARKETPLACE_MIGRATION,
+            "apply marketplace metadata migration",
+        ),
         (
             MARKETPLACE_REGISTRY_MIGRATION,
             "apply marketplace registry migration",
@@ -992,7 +1003,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
         .expect("read the catalog plugin")
         .expect("the catalog plugin is visible");
     assert_eq!(fetched.catalog_provider, "dsh-market");
-    assert_eq!(fetched.catalog_url.as_deref(), Some("https://github.com/example/demo"));
+    assert_eq!(
+        fetched.catalog_url.as_deref(),
+        Some("https://github.com/example/demo")
+    );
     assert_eq!(fetched.owner_login.as_deref(), Some("example"));
     assert_eq!(fetched.stars_count, 42);
     assert_eq!(fetched.downloads_count, 1234);
@@ -1014,7 +1028,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
 
     let targets = fetched.install_targets.clone();
     assert_eq!(targets.len(), 3);
-    assert_eq!(targets[0].kind, "archive", "default target orders first by source priority");
+    assert_eq!(
+        targets[0].kind, "archive",
+        "default target orders first by source priority"
+    );
     assert_eq!(
         targets[0].spec,
         "archive+https://github.com/example/demo/releases/download/tag@v1.0.0/demo.tgz"
@@ -1024,7 +1041,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
     assert_eq!(targets[2].kind, "registry");
     assert_eq!(targets[2].package_name.as_deref(), Some("@example/demo"));
     assert_eq!(targets[2].package_version.as_deref(), Some("1.0.0"));
-    let default_target = fetched.install_target.as_ref().expect("a stored default target");
+    let default_target = fetched
+        .install_target
+        .as_ref()
+        .expect("a stored default target");
     assert_eq!(default_target.kind, "archive");
 
     let media_kinds = fetched
@@ -1037,7 +1057,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
         vec![("icon", 0), ("screenshot", 1), ("screenshot", 2)],
         "media is ordered by kind then sort order"
     );
-    assert_eq!(fetched.capabilities, vec!["network".to_string(), "shell".to_string()]);
+    assert_eq!(
+        fetched.capabilities,
+        vec!["network".to_string(), "shell".to_string()]
+    );
     assert_eq!(
         fetched.capability_red_lines,
         vec!["reads credentials and calls the network".to_string()]
@@ -1045,7 +1068,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
 
     // The catalog facts and the ranked child collections are record data now;
     // no server-side install-plan action resolves them for a client.
-    assert_eq!(fetched.catalog_page_url.as_deref(), Some("https://awesome-dsh-plugin.com/p/example/demo/"));
+    assert_eq!(
+        fetched.catalog_page_url.as_deref(),
+        Some("https://awesome-dsh-plugin.com/p/example/demo/")
+    );
     assert_eq!(fetched.npm_package.as_deref(), Some("@example/demo"));
     assert_eq!(
         fetched.tarball_url.as_deref(),
@@ -1076,7 +1102,10 @@ async fn hydrates_catalog_record_children_and_install_targets() {
         .expect("read the renamed plugin")
         .expect("the renamed plugin stays visible");
     assert_eq!(updated.name, "Catalog Demo Renamed");
-    assert_eq!(updated.stars_count, 42, "an admin edit must not clear catalog facts");
+    assert_eq!(
+        updated.stars_count, 42,
+        "an admin edit must not clear catalog facts"
+    );
     assert_eq!(updated.install_targets.len(), 3);
     assert_eq!(updated.media.len(), 3);
     assert_eq!(updated.capabilities.len(), 2);
@@ -1088,5 +1117,143 @@ async fn hydrates_catalog_record_children_and_install_targets() {
     .execute(&admin)
     .await
     .expect("drop catalog hydration test schema");
+    admin.close().await;
+}
+
+#[tokio::test]
+async fn persists_installation_snapshots_and_reuses_the_record_id() {
+    let url = match std::env::var("SDKWORK_PLUGINS_POSTGRES_URL") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => return,
+    };
+    let admin = connect(&url).await;
+    let schema = format!(
+        "plugins_installation_sync_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    );
+    create_schema(&admin, &schema).await;
+    let pool = connect(&url).await;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SET search_path TO \"{schema}\""
+    )))
+    .execute(&pool)
+    .await
+    .expect("set installation test search path");
+    sqlx::raw_sql(BASELINE)
+        .execute(&pool)
+        .await
+        .expect("apply plugin baseline");
+    sqlx::raw_sql(INSTALLATION_MIGRATION)
+        .execute(&pool)
+        .await
+        .expect("apply installation migration");
+    sqlx::raw_sql(INSTALLATION_MIGRATION)
+        .execute(&pool)
+        .await
+        .expect("reapply installation migration idempotently");
+
+    let generator = Arc::new(SnowflakeIdGenerator::new(733).expect("create generator"));
+    let service = PluginsService::new(SqlxPluginsRepository::new(pool.clone(), generator));
+    service
+        .create_plugin(
+            100001,
+            0,
+            1,
+            CreatePluginCommand {
+                plugin_key: "installation-demo".to_string(),
+                name: "Installation Demo".to_string(),
+                description: None,
+                name_locales: serde_json::json!({}),
+                description_locales: serde_json::json!({}),
+                icon_url: None,
+                featured: false,
+                featured_order: 0,
+                featured_title_locales: serde_json::json!({}),
+                featured_description_locales: serde_json::json!({}),
+                featured_image_url: None,
+                category_id: None,
+                category_code: Some("official".to_string()),
+                version_label: Some("2.0.0".to_string()),
+                provider: Some("dsh-market".to_string()),
+                implementation_type: PluginImplementationType::Custom,
+                visibility: Some(PluginVisibility::Tenant),
+                manifest: Some(serde_json::json!({})),
+                source: None,
+                marketplace_metadata: None,
+                tags: Vec::new(),
+                allowed_role_codes: Vec::new(),
+            },
+        )
+        .await
+        .expect("create the catalog plugin");
+
+    let command = |action| PluginInstallationSyncCommand {
+        plugin_key: "installation-demo".to_string(),
+        action,
+        package_name: None,
+        version: None,
+        install_spec: None,
+    };
+    let installed = service
+        .sync_installation(
+            100001,
+            0,
+            1,
+            "host-installation",
+            command(PluginInstallationAction::Installed),
+        )
+        .await
+        .expect("persist the installation");
+    assert_eq!(installed.status, PluginInstallationStatus::Installed);
+    assert_eq!(installed.version.as_deref(), Some("2.0.0"));
+
+    let updated = service
+        .sync_installation(
+            100001,
+            0,
+            1,
+            "host-installation",
+            command(PluginInstallationAction::Updated),
+        )
+        .await
+        .expect("update the installation");
+    assert_eq!(updated.id, installed.id);
+
+    let removed = service
+        .sync_installation(
+            100001,
+            0,
+            1,
+            "host-installation",
+            command(PluginInstallationAction::Removed),
+        )
+        .await
+        .expect("remove the installation");
+    assert_eq!(removed.id, installed.id);
+    assert_eq!(removed.status, PluginInstallationStatus::Removed);
+    assert!(removed.removed_at.is_some());
+
+    let (status, snapshot): (String, serde_json::Value) = sqlx::query_as(
+        "SELECT status, catalog_snapshot_json FROM ai_plugin_installation \
+         WHERE tenant_id = 100001 AND host_id = 'host-installation' AND plugin_key = 'installation-demo'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("read the stored installation");
+    assert_eq!(status, "removed");
+    assert_eq!(snapshot["pluginKey"], "installation-demo");
+    assert_eq!(snapshot["categoryCode"], "official");
+
+    pool.close().await;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DROP SCHEMA \"{schema}\" CASCADE"
+    )))
+    .execute(&admin)
+    .await
+    .expect("drop installation test schema");
     admin.close().await;
 }

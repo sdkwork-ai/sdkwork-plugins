@@ -3,7 +3,7 @@
   "info": {
     "title": "SDKWork Plugins App API",
     "version": "1.0.0",
-    "description": "Marketplace authority for the SDKWork Plugins capability: catalog listing served under /app/v3/api. A catalog record carries its ranked install targets as record data; installation itself is performed by the client's Host profile and the API never executes it. Success bodies use the SdkWorkApiResponse envelope; errors use application/problem+json.",
+    "description": "Marketplace authority for the SDKWork Plugins capability: catalog listing served under /app/v3/api. Catalog records carry ranked install targets; the client's Host executes installation and synchronizes confirmed per-user, per-Host outcomes with complete catalog snapshots. Success bodies use the SdkWorkApiResponse envelope; errors use application/problem+json.",
     "x-sdkwork-owner": "sdkwork-plugins",
     "x-sdkwork-api-authority": "sdkwork-plugins.app"
   },
@@ -484,6 +484,129 @@
         "x-sdkwork-request-context": "WebRequestContext",
         "x-sdkwork-permission": "plugins.marketplace.read"
       }
+    },
+    "/app/v3/api/plugin_installations/{hostId}": {
+      "put": {
+        "tags": [
+          "plugins"
+        ],
+        "summary": "Plugins plugins.syncInstallation",
+        "description": "Persist a confirmed Host installation, update, or removal for the verified user and organization. The server reads the visible catalog record and stores its complete snapshot with the Host-reported version and install specification. Removal reuses the prior snapshot, so an entry retired from the catalog can still be removed. This operation never executes a package installation.",
+        "operationId": "plugins.syncInstallation",
+        "parameters": [
+          {
+            "name": "hostId",
+            "in": "path",
+            "required": true,
+            "description": "Stable Host or device identity from the authenticated client session.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginInstallationSyncCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Installation synchronized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SdkWorkApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "item"
+                          ],
+                          "properties": {
+                            "item": {
+                              "$ref": "#/components/schemas/PluginInstallationRecord"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AuthToken": [],
+            "AccessToken": []
+          }
+        ],
+        "x-sdkwork-owner": "sdkwork-plugins",
+        "x-sdkwork-api-authority": "sdkwork-plugins.app",
+        "x-sdkwork-domain": "intelligence",
+        "x-sdkwork-resource": "plugins",
+        "x-sdkwork-public": false,
+        "x-sdkwork-api-surface": "app-api",
+        "x-sdkwork-request-context": "WebRequestContext",
+        "x-sdkwork-permission": "plugins.marketplace.install"
+      }
     }
   },
   "components": {
@@ -500,6 +623,95 @@
       }
     },
     "schemas": {
+      "PluginInstallationSyncCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pluginKey",
+          "action"
+        ],
+        "properties": {
+          "pluginKey": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 128
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "installed",
+              "updated",
+              "removed"
+            ]
+          },
+          "packageName": {
+            "type": "string",
+            "maxLength": 214
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "installSpec": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        }
+      },
+      "PluginInstallationRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "hostId",
+          "pluginKey",
+          "status",
+          "snapshot",
+          "synchronizedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Snowflake id serialized as a decimal string."
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "pluginKey": {
+            "type": "string"
+          },
+          "packageName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "installSpec": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "installed",
+              "removed"
+            ]
+          },
+          "catalogRevision": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/PluginRecord"
+          },
+          "synchronizedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "SdkWorkApiResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -1315,6 +1527,9 @@
           "downloadsCheckedAt": { "type": ["string", "null"], "format": "date-time" },
           "githubReleaseDownloads": { "type": ["string", "null"], "format": "int64", "pattern": "^[0-9]+$", "x-sdkwork-int64-string": true },
           "releaseManifest": { "type": ["object", "null"], "additionalProperties": true },
+          "release": { "anyOf": [{ "$ref": "#/components/schemas/PluginMarketplaceRelease" }, { "type": "null" }] },
+          "recentCommits": { "type": "array", "items": { "$ref": "#/components/schemas/PluginMarketplaceCommit" }, "default": [] },
+          "updatesCheckedAt": { "type": ["string", "null"] },
           "iconUrl": { "type": ["string", "null"], "format": "uri" },
           "screenshots": { "type": "array", "items": { "type": "string", "format": "uri" }, "default": [] },
           "capabilities": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -1325,6 +1540,27 @@
           "previousNpm": { "type": "array", "items": { "type": "string" }, "default": [] },
           "catalogRevision": { "type": ["string", "null"] },
           "raw": { "type": "object", "additionalProperties": true, "default": {} }
+        }
+      },
+      "PluginMarketplaceRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tag": { "type": ["string", "null"] },
+          "name": { "type": ["string", "null"] },
+          "publishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "url": { "type": ["string", "null"], "format": "uri" },
+          "body": { "type": ["string", "null"] }
+        }
+      },
+      "PluginMarketplaceCommit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha"],
+        "properties": {
+          "sha": { "type": "string", "minLength": 1 },
+          "message": { "type": ["string", "null"] },
+          "date": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "PluginArtifactDriveFileSource": {

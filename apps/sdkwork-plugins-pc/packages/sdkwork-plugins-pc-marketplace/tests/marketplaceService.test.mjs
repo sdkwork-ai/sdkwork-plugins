@@ -41,7 +41,7 @@ test('loads featured cards separately from the usage-ranked catalog page', async
   assert.equal(result.hasMore, true);
   assert.deepEqual(calls, [
     { method: 'categories', params: { page: 1, pageSize: 200 }, options: { signal: controller.signal } },
-    { method: 'plugins', params: { page: 1, pageSize: 2, q: 'calendar', categoryCode: 'productivity', featuredOnly: true }, options: { signal: controller.signal } },
+    { method: 'plugins', params: { page: 1, pageSize: 3, q: 'calendar', categoryCode: 'productivity', featuredOnly: true }, options: { signal: controller.signal } },
     { method: 'plugins', params: { page: 1, pageSize: 48, q: 'calendar', categoryCode: 'productivity', sort: 'usage_count_desc' }, options: { signal: controller.signal } },
   ]);
 });

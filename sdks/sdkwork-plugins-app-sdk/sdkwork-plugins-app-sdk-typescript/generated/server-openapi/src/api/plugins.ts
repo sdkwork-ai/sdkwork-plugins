@@ -1,7 +1,7 @@
 import { appApiPath } from './paths';
 import type { ApiRequestOptions, HttpClient } from '../http/client';
 
-import type { PageInfo, PluginCategoryRecord, PluginRecord } from '../types';
+import type { PageInfo, PluginCategoryRecord, PluginInstallationRecord, PluginInstallationSyncCommand, PluginRecord } from '../types';
 
 
 export interface PluginsListParams {
@@ -59,6 +59,11 @@ export class PluginsApi {
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
     ]);
     return this.client.request<{ items: PluginCategoryRecord[]; pageInfo: PageInfo; }>(appendQueryString(appApiPath(`/plugin_categories`), query), { ...(requestOptions?.signal !== undefined ? { signal: requestOptions.signal } : {}), ...(requestOptions?.timeout !== undefined ? { timeout: requestOptions.timeout } : {}), method: 'GET' as any, sdkworkUnwrapKind: 'page' });
+  }
+
+/** Plugins plugins.syncInstallation */
+  async syncInstallation(hostId: string, body: PluginInstallationSyncCommand, requestOptions?: ApiRequestOptions): Promise<PluginInstallationRecord> {
+    return this.client.request<PluginInstallationRecord>(appApiPath(`/plugin_installations/${serializePathParameter(hostId, { name: 'hostId', style: 'simple', explode: false })}`), { ...(requestOptions?.signal !== undefined ? { signal: requestOptions.signal } : {}), ...(requestOptions?.timeout !== undefined ? { timeout: requestOptions.timeout } : {}), method: 'PUT' as any, body, contentType: 'application/json', sdkworkUnwrapKind: 'item' });
   }
 }
 

@@ -12,7 +12,7 @@
   "generatedFiles": [
     {
       "path": "bin/publish-core.mjs",
-      "sha256": "a47e95119bf3eafcbcb2102f7024c147f967924e4e3f343d1a29effb4b6765df"
+      "sha256": "6c2553df857f332f1a19e552f24b3320632d898eea5bd7a75fa5dc13a84b141b"
     },
     {
       "path": "bin/publish.ps1",
@@ -64,7 +64,7 @@
     },
     {
       "path": "src/api/plugins.ts",
-      "sha256": "a0d4cb348f1e0b4822fd47ee075294c9d1ed79783ff29bbbf9d176a3e3c71cda"
+      "sha256": "29f78ade0876645c39d10712cfa2f20d1ec48242066bea2a65d634497c39e41c"
     },
     {
       "path": "src/auth/index.ts",
@@ -96,7 +96,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "7b57caaba191d4429cfaeb859f71cfd772dc6d1cd5ee0f43e680a90b2ba4a0b5"
+      "sha256": "7b8acadbec4ca3d43753c22302b5839c7229192404fc8ab7ab0801aa8e97dd9f"
     },
     {
       "path": "src/types/page-info.ts",
@@ -127,8 +127,24 @@
       "sha256": "ae49f366dc8187fbf69d97bda5c3256a966c59d0f98896033e260ab4f302b0c8"
     },
     {
+      "path": "src/types/plugin-installation-record.ts",
+      "sha256": "269bd19eefd6c1e24e3f6d0fb1354e8590732dba5a40319bcdc3fb1612f57855"
+    },
+    {
+      "path": "src/types/plugin-installation-sync-command.ts",
+      "sha256": "1c5b0e9f8629d740336ce678aa7d186c3e551acf8bef890796491a8cfbf12fa8"
+    },
+    {
+      "path": "src/types/plugin-marketplace-commit.ts",
+      "sha256": "232ea4d507c2de68486d8846d0d10bf942bfd9df692942ffd7edee6396dc6443"
+    },
+    {
       "path": "src/types/plugin-marketplace-metadata.ts",
-      "sha256": "bedd44c0f40d3d70bf996318ec1c3d05bff15cfd6bbde437e2b05d6b67b2536e"
+      "sha256": "786392c5e1216470ff2793ea0557a2e06d3e7e66b4db4365a0884d18f1a3efe1"
+    },
+    {
+      "path": "src/types/plugin-marketplace-release.ts",
+      "sha256": "b12f3a40d0eea7222edec9b6bb07a7d68806444e4419ce7e48e22ba4cfafe9f5"
     },
     {
       "path": "src/types/plugin-media.ts",
@@ -149,6 +165,10 @@
     {
       "path": "src/types/plugins-retrieve-response.ts",
       "sha256": "4373b862e8eee1f39441e031a99564d5f82c205f138980b8bd74ae5395e1e96e"
+    },
+    {
+      "path": "src/types/plugins-sync-installation-response.ts",
+      "sha256": "54ea74fe15ec247207774413794032e1d5ea806e1cfe691d0befe30a60e4ba1f"
     },
     {
       "path": "src/types/problem-detail.ts",

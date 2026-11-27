@@ -12,7 +12,7 @@
   "generatedFiles": [
     {
       "path": "bin/publish-core.mjs",
-      "sha256": "a47e95119bf3eafcbcb2102f7024c147f967924e4e3f343d1a29effb4b6765df"
+      "sha256": "6c2553df857f332f1a19e552f24b3320632d898eea5bd7a75fa5dc13a84b141b"
     },
     {
       "path": "bin/publish.ps1",
@@ -100,7 +100,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "e006b9ae9535259799bb3fed63a8865629ba5af6c6e0d0e23755f583976957d2"
+      "sha256": "e15291eb6c90284fb27239307eecf7d80136ad45f88d0ce3de3dd89ce4d1b75a"
     },
     {
       "path": "src/types/page-info.ts",
@@ -131,8 +131,16 @@
       "sha256": "ae49f366dc8187fbf69d97bda5c3256a966c59d0f98896033e260ab4f302b0c8"
     },
     {
+      "path": "src/types/plugin-marketplace-commit.ts",
+      "sha256": "232ea4d507c2de68486d8846d0d10bf942bfd9df692942ffd7edee6396dc6443"
+    },
+    {
       "path": "src/types/plugin-marketplace-metadata.ts",
-      "sha256": "bedd44c0f40d3d70bf996318ec1c3d05bff15cfd6bbde437e2b05d6b67b2536e"
+      "sha256": "786392c5e1216470ff2793ea0557a2e06d3e7e66b4db4365a0884d18f1a3efe1"
+    },
+    {
+      "path": "src/types/plugin-marketplace-release.ts",
+      "sha256": "b12f3a40d0eea7222edec9b6bb07a7d68806444e4419ce7e48e22ba4cfafe9f5"
     },
     {
       "path": "src/types/plugin-media.ts",

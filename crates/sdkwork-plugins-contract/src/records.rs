@@ -108,6 +108,15 @@ pub struct PluginMarketplaceMetadata {
     pub github_release_downloads: Option<u64>,
     #[serde(default)]
     pub release_manifest: Option<serde_json::Value>,
+    /// Latest release projected from the registry changelog.
+    #[serde(default)]
+    pub release: Option<PluginMarketplaceRelease>,
+    /// Recent repository commits, newest first.
+    #[serde(default)]
+    pub recent_commits: Vec<PluginMarketplaceCommit>,
+    /// Date the registry changelog was checked (`YYYY-MM-DD`).
+    #[serde(default)]
+    pub updates_checked_at: Option<String>,
     #[serde(default)]
     pub icon_url: Option<String>,
     #[serde(default)]
@@ -129,6 +138,26 @@ pub struct PluginMarketplaceMetadata {
     /// Original registry entry retained for forward-compatible re-projection.
     #[serde(default)]
     pub raw: serde_json::Value,
+}
+
+/// Latest release facts retained from the dsh-market changelog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginMarketplaceRelease {
+    pub tag: Option<String>,
+    pub name: Option<String>,
+    pub published_at: Option<String>,
+    pub url: Option<String>,
+    pub body: Option<String>,
+}
+
+/// One recent repository commit retained from the dsh-market changelog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginMarketplaceCommit {
+    pub sha: String,
+    pub message: Option<String>,
+    pub date: Option<String>,
 }
 
 /// One stored install target of a catalog plugin.
@@ -344,6 +373,68 @@ pub struct PluginRecord {
 impl PluginRecord {
     pub fn is_enabled(&self) -> bool {
         self.lifecycle_status == PluginLifecycleStatus::Active
+    }
+}
+
+/// Confirmed Host mutation to persist for one user and device.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallationSyncCommand {
+    pub plugin_key: String,
+    pub action: PluginInstallationAction,
+    /// Package identity reported by the Host, when it exposes one.
+    #[serde(default)]
+    pub package_name: Option<String>,
+    /// Installed version reported by the Host, when known.
+    #[serde(default)]
+    pub version: Option<String>,
+    /// Exact specification accepted by the Host.
+    #[serde(default)]
+    pub install_spec: Option<String>,
+}
+
+/// Mutation represented by a confirmed Host result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PluginInstallationAction {
+    Installed,
+    Updated,
+    Removed,
+}
+
+/// Persisted installation fact and the catalog snapshot used at synchronization.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallationRecord {
+    #[serde(with = "sdkwork_utils_rust::serde_int64")]
+    pub id: i64,
+    pub host_id: String,
+    pub plugin_key: String,
+    pub package_name: Option<String>,
+    pub version: Option<String>,
+    pub install_spec: Option<String>,
+    pub status: PluginInstallationStatus,
+    pub catalog_revision: Option<String>,
+    pub snapshot: PluginRecord,
+    pub synchronized_at: String,
+    pub removed_at: Option<String>,
+}
+
+/// Stored state of one user's plugin on one Host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PluginInstallationStatus {
+    Installed,
+    Removed,
+}
+
+impl PluginInstallationStatus {
+    /// Database spelling used by the installation table.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Installed => "installed",
+            Self::Removed => "removed",
+        }
     }
 }
 

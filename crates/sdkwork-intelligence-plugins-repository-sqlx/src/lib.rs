@@ -1,4 +1,5 @@
 mod entity_ids;
+mod installations;
 mod json_util;
 mod postgres;
 
@@ -7,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sdkwork_id_core::SnowflakeIdGenerator;
 use sdkwork_intelligence_plugins_service::{PluginCatalogSort, PluginsRepository, PluginsResult};
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_plugins_contract::{PluginCategoryRecord, PluginInstallationRecord, PluginRecord};
 use sdkwork_utils_rust::CatalogViewFilter;
 use sqlx::PgPool;
 
@@ -190,5 +191,42 @@ impl PluginsRepository for SqlxPluginsRepository {
 
     async fn delete_plugin(&self, tenant_id: u64, plugin_key: &str) -> PluginsResult<PluginRecord> {
         postgres::delete_plugin(&self.pool, tenant_id, plugin_key).await
+    }
+
+    async fn sync_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        record: PluginInstallationRecord,
+    ) -> PluginsResult<PluginInstallationRecord> {
+        installations::sync_installation(
+            &self.pool,
+            &self.id_generator,
+            tenant_id,
+            organization_id,
+            user_id,
+            record,
+        )
+        .await
+    }
+
+    async fn get_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        host_id: &str,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginInstallationRecord>> {
+        installations::get_installation(
+            &self.pool,
+            tenant_id,
+            organization_id,
+            user_id,
+            host_id,
+            plugin_key,
+        )
+        .await
     }
 }

@@ -1,4 +1,6 @@
-use sdkwork_plugins_contract::{PluginCategoryRecord, PluginRecord};
+use sdkwork_plugins_contract::{
+    PluginCategoryRecord, PluginInstallationSyncCommand, PluginRecord,
+};
 use sdkwork_utils_rust::{SdkWorkPageData, SdkWorkResourceData};
 
 use crate::list_query::SdkWorkListQuery;
@@ -75,6 +77,20 @@ pub async fn list_categories<R: sdkwork_intelligence_plugins_service::PluginsRep
         )
         .await?;
     Ok(page_data_from_total(items, total, query))
+}
+
+pub async fn sync_installation<R: sdkwork_intelligence_plugins_service::PluginsRepository>(
+    service: &sdkwork_intelligence_plugins_service::PluginsService<R>,
+    tenant_id: u64,
+    organization_id: u64,
+    user_id: u64,
+    host_id: &str,
+    command: PluginInstallationSyncCommand,
+) -> ApiResult<sdkwork_utils_rust::SdkWorkResourceData<sdkwork_plugins_contract::PluginInstallationRecord>> {
+    let record = service
+        .sync_installation(tenant_id, organization_id, user_id, host_id, command)
+        .await?;
+    Ok(item_data(record))
 }
 
 /// `(limit, offset)` window handed to the store paged query.

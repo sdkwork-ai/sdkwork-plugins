@@ -1,10 +1,10 @@
 //! Marketplace HTTP surface for the SDKWork Plugins capability
-//! (`/app/v3/api/plugins`, `/app/v3/api/plugin_categories`). A catalog record
-//! carries its ranked install targets as record data; the API never executes a
-//! local installation.
+//! (`/app/v3/api/plugins`, `/app/v3/api/plugin_categories`). Catalog records
+//! carry ranked install targets; the client's Host executes installation and
+//! synchronizes confirmed outcomes to `/app/v3/api/plugin_installations/{hostId}`.
 //!
 //! Success bodies use the `SdkWorkApiResponse` envelope: lists return
-//! `data.items` + `data.pageInfo`, retrieval returns `data.item`.
+//! `data.items` + `data.pageInfo`, resources return `data.item`.
 
 mod handlers;
 mod health;
@@ -22,14 +22,14 @@ use axum::{
     extract::{Extension, Query, State},
     http::{HeaderMap, StatusCode},
     response::Response,
-    routing::get,
+    routing::{get, put},
     Json, Router,
 };
 use sdkwork_intelligence_plugins_service::{PluginsRepository, PluginsService};
 use sdkwork_web_core::{HttpRouteManifest, WebRequestContext};
 use sqlx::PgPool;
 
-pub use handlers::{list_categories, list_plugins, retrieve_plugin};
+pub use handlers::{list_categories, list_plugins, retrieve_plugin, sync_installation};
 pub use health::DbReadinessCheck;
 pub use http_route_manifest::app_route_manifest;
 pub use http_support::{resolve_tenant_id, TENANT_HEADER};
@@ -57,6 +57,7 @@ where
         .route(paths::PLUGINS_LIST, get(list_plugins_handler))
         .route(paths::PLUGIN_RETRIEVE, get(retrieve_plugin_handler))
         .route(paths::CATEGORIES_LIST, get(list_categories_handler))
+        .route(paths::INSTALLATION_SYNC, put(sync_installation_handler))
 }
 
 pub fn business_router<R>(state: AppState<R>) -> Router
@@ -199,6 +200,36 @@ where
             let tenant_id =
                 resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
             ok_json(handlers::list_categories(state.service.as_ref(), tenant_id, &query).await?)
+        }
+        .await,
+    )
+}
+
+async fn sync_installation_handler<R>(
+    ctx: WebRequestContext,
+    State(state): State<AppState<R>>,
+    context: Option<Extension<PluginsAppRequestContext>>,
+    axum::extract::Path(host_id): axum::extract::Path<String>,
+    Json(command): Json<sdkwork_plugins_contract::PluginInstallationSyncCommand>,
+) -> Response
+where
+    R: PluginsRepository + Send + Sync,
+{
+    response::finish_api_json(
+        &ctx,
+        async {
+            let tenant_id =
+                resolve_request_tenant_id(&ctx, context.as_ref(), state.default_tenant_id);
+            let (organization_id, user_id) = resolve_request_scope(context.as_ref());
+            ok_json(handlers::sync_installation(
+                state.service.as_ref(),
+                tenant_id,
+                organization_id,
+                user_id,
+                &host_id,
+                command,
+            )
+            .await?)
         }
         .await,
     )

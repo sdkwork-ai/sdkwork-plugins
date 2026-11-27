@@ -1,13 +1,14 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Mutex;
 
 use async_trait::async_trait;
 
 use sdkwork_plugins_contract::{
-    PluginCategoryRecord, PluginLifecycleStatus, PluginRecord, PluginVisibility,
+    PluginCategoryRecord, PluginInstallationRecord, PluginLifecycleStatus, PluginRecord,
+    PluginVisibility,
 };
-use sdkwork_utils_rust::{CatalogViewFilter, uuid};
+use sdkwork_utils_rust::{uuid, CatalogViewFilter};
 
 use crate::{PluginCatalogSort, PluginsRepository, PluginsResult, PluginsServiceError};
 
@@ -108,6 +109,7 @@ pub struct InMemoryPluginRepository {
 struct InMemoryState {
     categories: HashMap<(u64, String), PluginCategoryRecord>,
     plugins: HashMap<(u64, String), PluginRecord>,
+    installations: HashMap<(u64, u64, u64, String, String), PluginInstallationRecord>,
 }
 
 impl InMemoryPluginRepository {
@@ -413,5 +415,57 @@ impl PluginsRepository for InMemoryPluginRepository {
         deleted.lifecycle_status = sdkwork_plugins_contract::PluginLifecycleStatus::Deleted;
         state.plugins.remove(&key);
         Ok(deleted)
+    }
+
+    async fn sync_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        mut record: PluginInstallationRecord,
+    ) -> PluginsResult<PluginInstallationRecord> {
+        let mut state = self.state.lock().map_err(map_poison)?;
+        let key = (
+            tenant_id,
+            organization_id,
+            user_id,
+            record.host_id.clone(),
+            record.plugin_key.clone(),
+        );
+        if let Some(existing) = state.installations.get(&key) {
+            record.id = existing.id;
+        } else {
+            record.id = self.allocate_id();
+        }
+        let id = record.id;
+        record.synchronized_at = format!("1970-01-01T00:00:{:02}Z", id % 60);
+        if record.status == sdkwork_plugins_contract::PluginInstallationStatus::Removed {
+            record.removed_at = Some(record.synchronized_at.clone());
+        } else {
+            record.removed_at = None;
+        }
+        state.installations.insert(key, record.clone());
+        Ok(record)
+    }
+
+    async fn get_installation(
+        &self,
+        tenant_id: u64,
+        organization_id: u64,
+        user_id: u64,
+        host_id: &str,
+        plugin_key: &str,
+    ) -> PluginsResult<Option<PluginInstallationRecord>> {
+        let state = self.state.lock().map_err(map_poison)?;
+        Ok(state
+            .installations
+            .get(&(
+                tenant_id,
+                organization_id,
+                user_id,
+                host_id.to_string(),
+                plugin_key.to_string(),
+            ))
+            .cloned())
     }
 }

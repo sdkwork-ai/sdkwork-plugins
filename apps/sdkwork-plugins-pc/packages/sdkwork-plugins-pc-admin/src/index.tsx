@@ -18,6 +18,10 @@ import {
   type PluginsAdminListParams,
 } from './pluginsAdminService.ts';
 import { usePluginsAdminCopy, usePluginsAdminLocale, type PluginsAdminCopy } from './copy/pluginsAdminCopy.ts';
+import {
+  AdminListPagination,
+  DEFAULT_ADMIN_LIST_PAGE_SIZE,
+} from './components/AdminListPagination.tsx';
 import { ArtifactSourceField } from './components/ArtifactSourceField.tsx';
 import { CategorySelect } from './components/CategorySelect.tsx';
 import { RoleMultiSelect } from './components/RoleMultiSelect.tsx';
@@ -192,6 +196,30 @@ function formatTimestamp(value: string, locale: 'en' | 'zh'): string {
   }).format(parsed);
 }
 
+/**
+ * Rows matching the active query across every page.
+ *
+ * `pageInfo.totalItems` is an `int64` wire field, so the generated client types
+ * it as a decimal string (API_SPEC §13.6). It is a row count, never an
+ * identifier, so it is the one int64 the list may turn into a number to size the
+ * pagination bar; a missing or malformed value degrades to `0` instead of
+ * rendering `NaN`.
+ */
+function pageInfoTotalItems(pageInfo: { totalItems?: string } | undefined): number {
+  const parsed = Number.parseInt(pageInfo?.totalItems ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Last page that still renders a row for `total` rows at `pageSize`.
+ *
+ * Both lists clamp the requested page onto it when a filtered result set,
+ * a deletion or a page-size change shrinks the rows under the current page.
+ */
+function lastPageFor(totalItems: number, pageSize: number): number {
+  return Math.max(1, Math.ceil(Math.max(0, totalItems) / Math.max(1, pageSize)));
+}
+
 function Field({
   label,
   children,
@@ -286,9 +314,23 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   const [appliedKeyword, setAppliedKeyword] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
   const [roleScope, setRoleScope] = useState<RoleScope>('all');
+  /** 1-based page requested from the list endpoint. */
+  const [page, setPage] = useState(1);
+  /** Rows requested per page; the bar offers the shared size options. */
+  const [pageSize, setPageSize] = useState(DEFAULT_ADMIN_LIST_PAGE_SIZE);
+  /** Rows matching the active query across every page (`pageInfo.totalItems`). */
+  const [totalItems, setTotalItems] = useState(0);
 
+  /**
+   * The applied keyword is the one that reaches the list endpoint, so the page
+   * restarts there: a new query renumbers the result set, and keeping the old
+   * page would land on rows the query no longer has.
+   */
   useEffect(() => {
-    const timer = window.setTimeout(() => setAppliedKeyword(keyword), 250);
+    const timer = window.setTimeout(() => {
+      setAppliedKeyword(keyword);
+      setPage(1);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [keyword]);
 
@@ -298,10 +340,10 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
   );
 
   const listParams = useMemo<PluginsAdminListParams | undefined>(() => {
-    // The tables render the whole filtered list, so the request asks for the
-    // maximum page the backend serves (`MAX_LIST_PAGE_SIZE`); without it the
-    // default window would silently hide everything past the first 20 rows.
-    const params: NonNullable<PluginsAdminListParams> = { pageSize: 200 };
+    // The table pages on the server: `page`/`pageSize` bound the requested
+    // window and `pageInfo.totalItems` reports the size of the whole filtered
+    // set, so the page no longer has to over-fetch to stay complete.
+    const params: NonNullable<PluginsAdminListParams> = { page, pageSize };
     if (appliedKeyword.trim().length > 0) {
       params.q = appliedKeyword;
     }
@@ -312,7 +354,7 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
       params.roleCodes = [...roleScopeCodes].sort().join(',');
     }
     return params;
-  }, [appliedKeyword, categoryCode, roleScopeCodes]);
+  }, [page, pageSize, appliedKeyword, categoryCode, roleScopeCodes]);
 
   const reload = useCallback(() => {
     setReloadToken((token) => token + 1);
@@ -327,6 +369,7 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
     setAppliedKeyword('');
     setCategoryCode('');
     setRoleScope('all');
+    setPage(1);
   }, []);
 
   useEffect(() => {
@@ -339,9 +382,19 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
     ])
       .then(([pluginPage, categoryPage]) => {
         if (!active) return;
+        const total = pageInfoTotalItems(pluginPage.pageInfo);
         setRecords(pluginPage.items);
         setCategories(categoryPage.items);
+        setTotalItems(total);
         setError(null);
+        // A deletion, a narrowed filter or a larger page size can leave the
+        // current page past the end of the result set: fall back to the last
+        // populated page. The clamp targets a page the response already
+        // covers, so the follow-up load is in range and cannot loop.
+        const lastPage = lastPageFor(total, pageSize);
+        if (page > lastPage) {
+          setPage(lastPage);
+        }
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -353,7 +406,15 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
     return () => {
       active = false;
     };
-  }, [reloadToken, listParams]);
+  }, [reloadToken, listParams, page, pageSize]);
+
+  /**
+   * A different page size renumbers every row, so the list restarts at page 1.
+   */
+  const changePageSize = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, successNotice: string): Promise<boolean> => {
@@ -434,7 +495,10 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
               <select
                 className={INPUT_CLASS}
                 value={categoryCode}
-                onChange={(event) => setCategoryCode(event.target.value)}
+                onChange={(event) => {
+                  setCategoryCode(event.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="">{copy.plugins.filters.allCategories}</option>
                 {activeCategoryOptions(categories, categoryCode).map((category) => (
@@ -461,7 +525,10 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
                       aria-pressed={roleScope === scope}
                       disabled={disabled}
                       title={disabled ? copy.plugins.filters.roleScopeUnavailable : undefined}
-                      onClick={() => setRoleScope(scope)}
+                      onClick={() => {
+                        setRoleScope(scope);
+                        setPage(1);
+                      }}
                     >
                       {scope === 'all'
                         ? copy.plugins.filters.roleScopeAll
@@ -592,9 +659,19 @@ export function PluginsPage({ roleCodes = [] }: PluginsPageProps = {}) {
             </table>
           )}
         </div>
-        <div className="admin-list-footer">
-          <span>{copy.plugins.total(records.length)}</span>
-        </div>
+        {records.length > 0 ? (
+          <AdminListPagination
+            page={page}
+            pageSize={pageSize}
+            itemCount={records.length}
+            totalItems={totalItems}
+            hasNextPage={page * pageSize < totalItems}
+            copy={copy.pagination}
+            disabled={loading}
+            onPageChange={setPage}
+            onPageSizeChange={changePageSize}
+          />
+        ) : null}
       </div>
 
       {createOpen ? (
@@ -915,6 +992,12 @@ function PluginEditorDrawer(props: PluginEditorDrawerProps) {
 
 /**
  * (`/backend/v3/api/plugin_categories`): list and upsert categories.
+ *
+ * The list pages on the server: the table renders exactly the rows the endpoint
+ * returns and derives nothing from the whole registry (no parent options, no
+ * counts, no client-side overwrite detection — the upsert modal is a free-text
+ * form), so the requested `page`/`pageSize` window is the complete view and
+ * `pageInfo.totalItems` supplies the size of the registry.
  */
 export function PluginCategoriesPage() {
   const copy = usePluginsAdminCopy();
@@ -925,6 +1008,12 @@ export function PluginCategoriesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [upsertOpen, setUpsertOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  /** 1-based page requested from the category endpoint. */
+  const [page, setPage] = useState(1);
+  /** Rows requested per page; the bar offers the shared size options. */
+  const [pageSize, setPageSize] = useState(DEFAULT_ADMIN_LIST_PAGE_SIZE);
+  /** Rows in the registry across every page (`pageInfo.totalItems`). */
+  const [totalItems, setTotalItems] = useState(0);
 
   const reload = useCallback(() => {
     setReloadToken((token) => token + 1);
@@ -933,11 +1022,21 @@ export function PluginCategoriesPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    listPluginCategories()
-      .then((page) => {
+    listPluginCategories({ page, pageSize })
+      .then((categoryPage) => {
         if (!active) return;
-        setRecords(page.items);
+        const total = pageInfoTotalItems(categoryPage.pageInfo);
+        setRecords(categoryPage.items);
+        setTotalItems(total);
         setError(null);
+        // An upsert that reshapes the registry or a larger page size can leave
+        // the current page past the end of the result set: fall back to the
+        // last populated page. The clamp targets a page the response already
+        // covers, so the follow-up load is in range and cannot loop.
+        const lastPage = lastPageFor(total, pageSize);
+        if (page > lastPage) {
+          setPage(lastPage);
+        }
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -949,7 +1048,15 @@ export function PluginCategoriesPage() {
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, page, pageSize]);
+
+  /**
+   * A different page size renumbers every row, so the list restarts at page 1.
+   */
+  const changePageSize = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
 
   const runAction = useCallback(
     async (action: () => Promise<unknown>, successNotice: string): Promise<boolean> => {
@@ -1041,9 +1148,19 @@ export function PluginCategoriesPage() {
             </table>
           )}
         </div>
-        <div className="admin-list-footer">
-          <span>{copy.categories.total(records.length)}</span>
-        </div>
+        {records.length > 0 ? (
+          <AdminListPagination
+            page={page}
+            pageSize={pageSize}
+            itemCount={records.length}
+            totalItems={totalItems}
+            hasNextPage={page * pageSize < totalItems}
+            copy={copy.pagination}
+            disabled={loading}
+            onPageChange={setPage}
+            onPageSizeChange={changePageSize}
+          />
+        ) : null}
       </div>
 
       {upsertOpen ? (
