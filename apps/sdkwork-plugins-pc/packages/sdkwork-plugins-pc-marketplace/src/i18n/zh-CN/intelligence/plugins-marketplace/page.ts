@@ -46,6 +46,7 @@ export const marketplaceMessages = {
   installCommandTitle: '安装命令',
   communityPluginNote: '社区第三方插件，构建脚本默认不运行。',
   openRepository: '在浏览器中打开 Git 仓库',
+  repositoryLabel: 'Git 仓库',
   copyCommand: '复制安装命令',
   commandCopied: '安装命令已复制',
   openPluginPage: '打开插件页',

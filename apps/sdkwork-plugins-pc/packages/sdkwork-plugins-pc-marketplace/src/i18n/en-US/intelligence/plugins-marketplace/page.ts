@@ -46,6 +46,7 @@ export const marketplaceMessages = {
   installCommandTitle: 'Install command',
   communityPluginNote: 'Community plugins: build scripts are off by default.',
   openRepository: 'Open the git repository in a browser',
+  repositoryLabel: 'Repository',
   copyCommand: 'Copy the install command',
   commandCopied: 'Install command copied',
   openPluginPage: 'Open the plugin page',

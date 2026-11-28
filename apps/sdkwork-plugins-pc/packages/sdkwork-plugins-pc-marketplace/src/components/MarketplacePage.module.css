@@ -374,6 +374,14 @@
 /* The scrim and the panel are fixed: the catalog scrolls inside a host panel,
    and the dialog must sit over the whole window regardless of that viewport. */
 .dialogScrim {
+  /* The dialog renders beside the catalog root, so it declares the market tokens
+     it paints with instead of inheriting them from the catalog's page. */
+  --market-bg: var(--dsw-alias-bg-base, #090909);
+  --market-surface: var(--dsw-alias-bg-layer-1, #1b1b1b);
+  --market-line: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.12));
+  --market-text: var(--dsw-alias-label-primary, #f4f4f5);
+  --market-muted: var(--dsw-alias-label-secondary, #a1a1aa);
+  --market-danger: var(--dsw-alias-label-error, #f87171);
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -514,12 +522,27 @@
 .dialogNote { margin: 0; color: var(--market-muted); font-size: 12px; }
 .dialogActions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   padding-top: 6px;
 }
+/* The card's install block is a grid of meta above actions; in the dialog footer
+   it joins the row and drops the version the header already shows. */
+.dialogActions .installControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.dialogActions .installMeta { display: none; }
+/* One control height across the row: the card's buttons are 38px, the dialog's
+   own actions are 36px. */
+.dialogActions .installButton,
+.dialogActions .removeButton { min-height: 36px; }
+.dialogActions .installReason { max-width: 220px; }
+.dialogAction { white-space: nowrap; flex: none; }
 .dialogAction {
   display: inline-flex;
   align-items: center;

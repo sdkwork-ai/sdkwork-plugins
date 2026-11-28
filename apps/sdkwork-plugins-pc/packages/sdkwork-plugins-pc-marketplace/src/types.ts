@@ -52,8 +52,10 @@ export interface MarketplaceMessages {
   installCommandTitle: string;
   /** Note under the actions: community plugins keep build scripts off by default. */
   communityPluginNote: string;
-  /** Action that opens the plugin's git repository in a new browser tab. */
+  /** Accessible name of the action that opens the plugin's git repository. */
   openRepository: string;
+  /** Short visible label of that action, so the dialog's footer stays one row. */
+  repositoryLabel: string;
   /** Copy action for one install command. */
   copyCommand: string;
   /** Confirmation after copying an install command. */
