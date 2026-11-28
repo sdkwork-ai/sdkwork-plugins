@@ -170,3 +170,17 @@ test('card bodies are never click targets and only explicit controls install', (
   assert.ok(pageSource.includes('aria-describedby='), 'a blocked control must reference its reason');
   assert.ok(pageSource.includes('role="alert"'), 'a failed install must be announced');
 });
+
+test('opens a plugin detail dialog from a card and links its git repository', async () => {
+  const pageSource = await readFile(new URL('../src/components/MarketplacePage.tsx', import.meta.url), 'utf8');
+  assert.ok(pageSource.includes('role="dialog"'), 'the detail is a dialog');
+  assert.ok(pageSource.includes('aria-modal="true"'), 'the dialog announces its modality');
+  assert.ok(pageSource.includes('data-back-to-top'), 'the catalog keeps its back-to-top control');
+  assert.ok(pageSource.includes('messages.openRepository'), 'a repository link carries an accessible name');
+  assert.ok(pageSource.includes("target=\"_blank\""), 'a repository link opens in a new tab');
+  assert.ok(pageSource.includes("rel=\"noreferrer noopener\""), 'an opened repository cannot reach back through window.opener');
+  assert.ok(pageSource.includes('plugin.capabilities.map'), 'the dialog lists the declared capabilities');
+  assert.ok(pageSource.includes('plugin.capabilityRedLines.map'), 'the dialog lists the declared red lines');
+  assert.ok(pageSource.includes('plugin.installTargets.map'), 'the dialog lists the install commands');
+  assert.ok(!pageSource.includes('featureTitleLink}>{title}</button>}'), 'the featured title is always the detail control');
+});

@@ -231,7 +231,7 @@ function PluginDetailDialog({
                 aria-label={messages.openRepository}
               >
                 <GitIcon />
-                {messages.openRepository}
+                {messages.repositoryLabel}
               </a>}
           {onOpenPlugin === undefined
             ? null
@@ -512,6 +512,7 @@ export function MarketplacePage({
   };
 
   return (
+    <>
     <main className={styles.page} ref={rootRef}>
       {hideToolbar ? null : (
         <header className={styles.header}>
@@ -689,21 +690,6 @@ export function MarketplacePage({
           ) : null}
         </div>
       )}
-      {detailPlugin === undefined ? null : (
-        <PluginDetailDialog
-          plugin={detailPlugin}
-          locale={locale}
-          messages={messages}
-          categories={categories}
-          installation={cardState(detailPlugin).installation}
-          state={cardState(detailPlugin).state}
-          onClose={() => { setDetailPlugin(undefined); }}
-          {...(onInstall === undefined ? {} : { onInstall })}
-          {...(onUpdate === undefined ? {} : { onUpdate })}
-          {...(onRemove === undefined ? {} : { onRemove })}
-          {...(onOpenPlugin === undefined ? {} : { onOpenPlugin })}
-        />
-      )}
       {scrolled ? (
         <button
           type="button"
@@ -719,5 +705,21 @@ export function MarketplacePage({
         </button>
       ) : null}
     </main>
+    {detailPlugin === undefined ? null : (
+      <PluginDetailDialog
+        plugin={detailPlugin}
+        locale={locale}
+        messages={messages}
+        categories={categories}
+        installation={cardState(detailPlugin).installation}
+        state={cardState(detailPlugin).state}
+        onClose={() => { setDetailPlugin(undefined); }}
+        {...(onInstall === undefined ? {} : { onInstall })}
+        {...(onUpdate === undefined ? {} : { onUpdate })}
+        {...(onRemove === undefined ? {} : { onRemove })}
+        {...(onOpenPlugin === undefined ? {} : { onOpenPlugin })}
+      />
+    )}
+    </>
   );
 }

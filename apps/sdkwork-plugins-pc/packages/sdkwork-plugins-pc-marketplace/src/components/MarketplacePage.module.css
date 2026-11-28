@@ -387,6 +387,9 @@
 }
 .dialog {
   width: min(640px, 100%);
+  /* The panel keeps its own breathing room from the window edge: a host may pad
+     the scrim itself, and only the panel's margin is outside host selectors. */
+  margin: 24px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -535,8 +538,16 @@
 .dialogAction:hover { background: rgba(255, 255, 255, 0.08); }
 
 /* --- Card affordances ---------------------------------------------------- */
-/* A row card is one control: the name is a real button whose hit area covers the
-   card, and the card's own buttons and links sit above that area. */
+/* A card is one control: its title is a real button whose hit area covers the
+   whole card, and the card's own buttons and links sit above that area. The
+   featured shelf follows the same rule. */
+.featureCard { position: relative; }
+.featureTitleLink::after { content: ''; position: absolute; inset: 0; }
+.featureCard > .installControls,
+.featureCard .featureCopy > .installControls { position: relative; z-index: 1; }
+/* The featured card's repository link sits in its own corner: the copy column is
+   a grid, so an in-flow icon would claim a row of its own. */
+.featureCard .repoLink { position: absolute; top: 12px; right: 12px; z-index: 1; }
 .pluginName {
   display: block;
   width: 100%;
@@ -560,11 +571,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  border-radius: 6px;
-  color: var(--market-muted);
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  color: var(--market-text);
+  background: rgba(255, 255, 255, 0.1);
 }
 .repoLink:hover { color: var(--market-text); background: rgba(255, 255, 255, 0.16); }
