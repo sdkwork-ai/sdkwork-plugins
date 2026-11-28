@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { PluginCategoryRecord, PluginRecord } from '@sdkwork/plugins-app-sdk';
 import type { MarketplaceAppClient, MarketplaceCatalog } from '../services/marketplaceService.ts';
 import { loadMarketplaceCatalog, mergeMarketplaceCatalog } from '../services/marketplaceService.ts';
@@ -34,6 +34,19 @@ export interface MarketplacePageProps {
   /** Hide the embedded section switcher when a host provides the shared one. */
   showSectionNavigation?: boolean;
   canInstall?: boolean;
+  /**
+   * Controlled catalog query. When a host renders the toolbar itself it owns the
+   * field, so the search text arrives here instead of the page keeping its own.
+   */
+  searchValue?: string;
+  /** Called with the next query while `searchValue` is provided. */
+  onSearchValueChange?: (value: string) => void;
+  /**
+   * Skip the page header — the search field and the two action buttons — so a
+   * host can place that toolbar in its own chrome row. The category strip and
+   * the catalog body remain.
+   */
+  hideToolbar?: boolean;
 }
 
 function localizedText(values: Record<string, string> | undefined, locale: MarketplaceLocale): string | undefined {
@@ -160,9 +173,15 @@ export function MarketplacePage({
   onSectionChange,
   showSectionNavigation = true,
   canInstall = true,
+  searchValue,
+  onSearchValueChange,
+  hideToolbar = false,
 }: MarketplacePageProps) {
   const messages = marketplaceMessagesFor(locale);
-  const [search, setSearch] = useState('');
+  const [ownSearch, setOwnSearch] = useState('');
+  // A host that renders the toolbar owns the query; otherwise the page does.
+  const search = searchValue ?? ownSearch;
+  const changeSearch = onSearchValueChange ?? setOwnSearch;
   const [categoryCode, setCategoryCode] = useState<string | undefined>();
   const [catalog, setCatalog] = useState<MarketplaceCatalog>({
     categories: [],
@@ -175,6 +194,27 @@ export function MarketplacePage({
   const [retryVersion, setRetryVersion] = useState(0);
   const [page, setPage] = useState(1);
   const query = useDebouncedSearch(search);
+
+  // The category strip is one row by default. Categories are catalog data, so
+  // a wide catalog overflows the column; the strip then offers a trailing
+  // toggle that wraps every category onto further rows instead of running off
+  // the edge. Overflow is measured on the collapsed strip only, because the
+  // wrapped form always fits by construction.
+  const categoriesRef = useRef<HTMLElement | null>(null);
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const [categoriesOverflow, setCategoriesOverflow] = useState(false);
+
+  useEffect(() => {
+    if (categoriesExpanded) return undefined;
+    const measure = (): void => {
+      const node = categoriesRef.current;
+      if (node === null) return;
+      setCategoriesOverflow(node.scrollWidth > node.clientWidth + 1);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => { window.removeEventListener('resize', measure); };
+  }, [categoriesExpanded, catalog.categories]);
 
   useEffect(() => {
     setPage(1);
@@ -220,41 +260,67 @@ export function MarketplacePage({
 
   return (
     <main className={styles.page}>
-      <header className={styles.header}>
-        {showSectionNavigation && <nav className={styles.mainNav} aria-label={messages.sectionNavigationLabel}>
-          <svg className={styles.brandMark} viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="2.5" y="3.5" width="19" height="17" rx="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M8.5 4v16" stroke="currentColor" strokeWidth="1.8" />
-          </svg>
-          <button type="button" className={`${styles.navLink} ${activeSection === 'plugins' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'plugins' ? 'page' : undefined} onClick={() => { onSectionChange?.('plugins'); }}>{messages.navigation.plugins}</button>
-          <button type="button" className={`${styles.navLink} ${activeSection === 'skills' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'skills' ? 'page' : undefined} onClick={() => { onSectionChange?.('skills'); }}>{messages.navigation.skills}</button>
-          <button type="button" className={`${styles.navLink} ${activeSection === 'partners' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'partners' ? 'page' : undefined} onClick={() => { onSectionChange?.('partners'); }}>{messages.navigation.partners}</button>
-        </nav>}
-        <div className={styles.toolbar}>
-          <label className={styles.search}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" strokeWidth="1.8" /><path d="m16 16 5 5" stroke="currentColor" strokeWidth="1.8" /></svg>
-            <input className={styles.searchInput} type="search" value={search} onChange={event => { setSearch(event.target.value); }} placeholder={messages.search} aria-label={messages.search} />
-          </label>
-          <div className={styles.actions}>
-            <button type="button" className={styles.actionButton} onClick={onManage}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6m6 4v6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /><circle cx="9" cy="7" r="2" fill="var(--market-bg)" stroke="currentColor" strokeWidth="1.7" /><circle cx="15" cy="17" r="2" fill="var(--market-bg)" stroke="currentColor" strokeWidth="1.7" /></svg>
-              {messages.manage}
-            </button>
-            <button type="button" className={styles.actionButton} disabled={!canInstall} onClick={onAdd}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-              {messages.add}
-            </button>
+      {hideToolbar ? null : (
+        <header className={styles.header}>
+          {showSectionNavigation && <nav className={styles.mainNav} aria-label={messages.sectionNavigationLabel}>
+            <svg className={styles.brandMark} viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="2.5" y="3.5" width="19" height="17" rx="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M8.5 4v16" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            <button type="button" className={`${styles.navLink} ${activeSection === 'plugins' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'plugins' ? 'page' : undefined} onClick={() => { onSectionChange?.('plugins'); }}>{messages.navigation.plugins}</button>
+            <button type="button" className={`${styles.navLink} ${activeSection === 'skills' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'skills' ? 'page' : undefined} onClick={() => { onSectionChange?.('skills'); }}>{messages.navigation.skills}</button>
+            <button type="button" className={`${styles.navLink} ${activeSection === 'partners' ? styles.navLinkActive : ''}`} aria-current={activeSection === 'partners' ? 'page' : undefined} onClick={() => { onSectionChange?.('partners'); }}>{messages.navigation.partners}</button>
+          </nav>}
+          <div className={styles.toolbar}>
+            <label className={styles.search}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" strokeWidth="1.8" /><path d="m16 16 5 5" stroke="currentColor" strokeWidth="1.8" /></svg>
+              <input className={styles.searchInput} type="search" value={search} onChange={event => { changeSearch(event.target.value); }} placeholder={messages.search} aria-label={messages.search} />
+            </label>
+            <div className={styles.actions}>
+              <button type="button" className={styles.actionButton} onClick={onManage}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6m6 4v6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /><circle cx="9" cy="7" r="2" fill="var(--market-bg)" stroke="currentColor" strokeWidth="1.7" /><circle cx="15" cy="17" r="2" fill="var(--market-bg)" stroke="currentColor" strokeWidth="1.7" /></svg>
+                {messages.manage}
+              </button>
+              <button type="button" className={styles.actionButton} disabled={!canInstall} onClick={onAdd}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                {messages.add}
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <nav className={styles.categories} aria-label={messages.categoryNavigationLabel}>
+      {/* One row by default; a catalog whose categories do not fit offers the
+          trailing toggle, which wraps them onto further rows. The toggle sits
+          in the row's own scroll area and stays pinned to its trailing edge, so
+          the chips run under it rather than off the column. */}
+      <nav
+        ref={categoriesRef}
+        className={`${styles.categories} ${categoriesExpanded ? styles.categoriesExpanded : ''}`}
+        aria-label={messages.categoryNavigationLabel}
+      >
         <button type="button" className={`${styles.category} ${categoryCode === undefined ? styles.categoryActive : ''}`} onClick={() => { setCategoryCode(undefined); }}>{messages.featured}</button>
         {categories.map(category => (
           <button key={category.categoryCode} type="button" className={`${styles.category} ${categoryCode === category.categoryCode ? styles.categoryActive : ''}`} onClick={() => { setCategoryCode(category.categoryCode); }}>
             {categoryName(category, locale)}
           </button>
         ))}
+        {categoriesOverflow || categoriesExpanded ? (
+          <button
+            type="button"
+            className={styles.categoryToggle}
+            data-category-toggle=""
+            aria-label={categoriesExpanded ? messages.collapseCategories : messages.expandCategories}
+            aria-expanded={categoriesExpanded}
+            onClick={() => { setCategoriesExpanded(value => !value) }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              {categoriesExpanded
+                ? <path d="M5 12h14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                : <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />}
+            </svg>
+          </button>
+        ) : null}
       </nav>
 
       {loading && popular.length === 0 ? (

@@ -34,4 +34,6 @@ export const marketplaceMessages = {
   manageDescription: 'View and manage added plugins.',
   addTitle: 'Add a plugin',
   addDescription: 'Add a plugin published through SDKWork Plugins.',
+  expandCategories: 'Show all categories',
+  collapseCategories: 'Collapse categories',
 } as const;

@@ -84,12 +84,47 @@
 }
 .actionButton:hover, .installButton:hover, .removeButton:hover { background: rgba(255, 255, 255, 0.08); }
 .categories {
+  position: relative;
   gap: 6px;
   padding: 12px 24px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* One row: chips that do not fit are clipped under the trailing toggle
+     instead of running past the column edge. */
+  overflow: hidden;
 }
-.categories::-webkit-scrollbar { display: none; }
+/* Expanded: every category wraps onto further rows and the strip grows. */
+.categoriesExpanded {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+/* The trailing toggle stays on the row's trailing edge while the chips run
+   under it, and paints a fade from the page fill so no half chip shows through.
+   Collapsed it floats over the row; expanded it is the last wrapped item. */
+.categoryToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--market-text);
+  background: var(--market-surface);
+  cursor: pointer;
+}
+.categories:not(.categoriesExpanded) .categoryToggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  margin-left: 0;
+  transform: translateY(-50%);
+  /* The fade paints the page fill on both sides of the control, so no chip
+     shows through the strip's trailing inset either. */
+  box-shadow: -14px 0 12px 6px var(--market-bg), 14px 0 12px 6px var(--market-bg);
+}
+.categoryToggle:hover { background: rgba(255, 255, 255, 0.16); }
 .category {
   min-height: 38px;
   padding: 0 14px;

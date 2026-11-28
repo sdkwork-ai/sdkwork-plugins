@@ -34,4 +34,6 @@ export const marketplaceMessages = {
   manageDescription: '查看和管理已添加的插件。',
   addTitle: '添加插件',
   addDescription: '添加经过 SDKWork Plugins 发布的插件。',
+  expandCategories: '展开全部分类',
+  collapseCategories: '收起分类',
 } as const;

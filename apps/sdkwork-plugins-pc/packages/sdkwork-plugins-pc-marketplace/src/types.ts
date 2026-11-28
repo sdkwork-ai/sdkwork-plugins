@@ -30,6 +30,10 @@ export interface MarketplaceMessages {
   manageDescription: string;
   addTitle: string;
   addDescription: string;
+  /** Opens the wrapped category strip when the categories do not fit one row. */
+  expandCategories: string;
+  /** Collapses the wrapped category strip back to one row. */
+  collapseCategories: string;
 }
 
 /** Install target kinds the local Host can execute. */
