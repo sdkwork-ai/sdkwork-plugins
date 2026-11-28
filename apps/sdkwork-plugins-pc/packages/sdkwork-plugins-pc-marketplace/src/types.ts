@@ -34,6 +34,10 @@ export interface MarketplaceMessages {
   expandCategories: string;
   /** Collapses the wrapped category strip back to one row. */
   collapseCategories: string;
+  /** Status line under the list while the next page loads as the reader scrolls. */
+  loadMoreHint: string;
+  /** Accessible name of the control that scrolls the catalog back to its top. */
+  backToTop: string;
 }
 
 /** Install target kinds the local Host can execute. */

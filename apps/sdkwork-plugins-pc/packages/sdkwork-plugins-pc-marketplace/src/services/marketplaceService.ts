@@ -56,6 +56,12 @@ export interface MarketplaceInstallRecord {
 }
 
 const INSTALL_TARGET_KINDS: readonly MarketplaceInstallTargetKind[] = ['registry', 'archive', 'git', 'path', 'drive'];
+/**
+ * Cards the featured shelf asks for. The page's featured grid is two columns, so
+ * four fills two rows; the shelf is a fixed showcase rather than a paginated
+ * list, and the catalog seed places the same number of entries.
+ */
+export const FEATURED_PAGE_SIZE = 4;
 const REGISTRY_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/iu;
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9a-z][0-9a-z.-]*)?$/iu;
 const ARCHIVE_PATH = /\.(?:tgz|tar\.gz|zip)$/iu;
@@ -78,7 +84,12 @@ export async function loadMarketplaceCatalog(
   const [categories, featuredPage, popularPageResult] = await Promise.all([
     client.plugins.listCategories({ page: 1, pageSize: 200 }, { signal }),
     includeFeatured
-      ? client.plugins.list({ page: 1, pageSize: 3, ...sharedFilters, featuredOnly: true }, { signal })
+      ? client.plugins.list({
+        page: 1,
+        pageSize: FEATURED_PAGE_SIZE,
+        ...sharedFilters,
+        featuredOnly: true,
+      }, { signal })
       : Promise.resolve({ items: [] as PluginRecord[] }),
     client.plugins.list({
       page: popularPage,

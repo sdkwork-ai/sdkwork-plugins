@@ -8,7 +8,11 @@ Locale-specific display copy lives under `seeds/locales/{locale}/`.
   and development, data retrieval, document processing, database apps, image
   processing, and business apps. The inserts are idempotent and keyed by
   `(tenant_id, category_code)`.
-- `002_plugin_catalog.sql` seeds the SDKWork-authored plugin records.
+- `002_plugin_catalog.sql` seeds the SDKWork-authored plugin records. Four of
+  them carry featured placement (orders 10, 20, 30 and 40), so the marketplace's
+  featured shelf renders a full grid on a fresh deployment; a trailing
+  idempotent `UPDATE` gives the same placements to a deployment seeded before
+  them, and only touches rows nobody curated.
 - `003_dsh_market_catalog.sql` is a generated, idempotent projection of the
   dsh-market `plugins.json` catalog plus the `updates.json` changelog: 12,961
   entries across 23 categories, their machine facts, the full registry

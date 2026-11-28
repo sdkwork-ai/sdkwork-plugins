@@ -4,7 +4,9 @@
 -- console and the marketplace page both render a category tree with nothing
 -- filed under it. These rows file one plugin per seeded category and two
 -- role-restricted entries, which is what makes the catalog's category filter
--- and its "my roles" scope observable instead of theoretical. Idempotent:
+-- and its "my roles" scope observable instead of theoretical. Four entries
+-- carry featured placement, so the marketplace's featured shelf shows a full
+-- grid on a fresh deployment instead of a half-empty one. Idempotent:
 -- `seedOnBoot` re-runs this on every start without duplicating or resurrecting
 -- a renamed plugin.
 
@@ -97,10 +99,10 @@ VALUES
         '通用文件解析器',
         '解析 PDF、Word、Excel 与 Markdown，输出结构化文本与表格。',
         4300,
-        FALSE,
-        0,
-        '{}'::jsonb,
-        '{}'::jsonb,
+        TRUE,
+        30,
+        '{"zh-CN":"通用文件解析器","en-US":"Universal Document Parser"}'::jsonb,
+        '{"zh-CN":"解析 PDF、Word、Excel 与 Markdown，输出结构化文本与表格。","en-US":"Parse PDF, Word, Excel and Markdown into structured text and tables."}'::jsonb,
         9300000000003,
         'document-processing',
         '2.0.1',
@@ -123,10 +125,10 @@ VALUES
         '数据库连接器',
         '安全连接 PostgreSQL、MySQL 与 SQLite，执行只读查询并导出结果集。',
         3100,
-        FALSE,
-        0,
-        '{}'::jsonb,
-        '{}'::jsonb,
+        TRUE,
+        40,
+        '{"zh-CN":"数据库连接器","en-US":"Database Connector"}'::jsonb,
+        '{"zh-CN":"安全连接 PostgreSQL、MySQL 与 SQLite，执行只读查询并导出结果集。","en-US":"Connect to PostgreSQL, MySQL and SQLite safely, run read-only queries and export result sets."}'::jsonb,
         9300000000004,
         'database-apps',
         '1.3.0',
@@ -244,3 +246,27 @@ VALUES
         '["org_admin","org_auditor"]'::jsonb
     )
 ON CONFLICT (tenant_id, plugin_key) DO NOTHING;
+
+-- Deployments seeded before featured placement covered four entries gain the
+-- extra placements. Only a row nobody curated moves: a featured row, or one
+-- carrying a featured order or featured copy, keeps whatever the operator set,
+-- so re-seeding never resurrects a deliberate un-featuring.
+UPDATE ai_plugin AS plugin
+SET is_featured = TRUE,
+    featured_order = value.featured_order,
+    featured_title_locales_json = value.title_locales,
+    featured_description_locales_json = value.description_locales
+FROM (VALUES
+    ('document-parser', 30,
+     '{"zh-CN":"通用文件解析器","en-US":"Universal Document Parser"}'::jsonb,
+     '{"zh-CN":"解析 PDF、Word、Excel 与 Markdown，输出结构化文本与表格。","en-US":"Parse PDF, Word, Excel and Markdown into structured text and tables."}'::jsonb),
+    ('sql-console', 40,
+     '{"zh-CN":"数据库连接器","en-US":"Database Connector"}'::jsonb,
+     '{"zh-CN":"安全连接 PostgreSQL、MySQL 与 SQLite，执行只读查询并导出结果集。","en-US":"Connect to PostgreSQL, MySQL and SQLite safely, run read-only queries and export result sets."}'::jsonb)
+) AS value(plugin_key, featured_order, title_locales, description_locales)
+WHERE plugin.tenant_id = 100001
+  AND plugin.plugin_key = value.plugin_key
+  AND plugin.is_featured = FALSE
+  AND plugin.featured_order = 0
+  AND plugin.featured_title_locales_json = '{}'::jsonb
+  AND plugin.featured_description_locales_json = '{}'::jsonb;

@@ -277,7 +277,9 @@ async fn seeds_featured_plugins_without_overwriting_curation() {
     .fetch_all(&pool)
     .await
     .expect("read featured seed rows");
-    assert_eq!(plugin_rows.len(), 2);
+    // Four placements, so the featured shelf is a full grid on a fresh
+    // deployment; the operator's curation of the first row survives.
+    assert_eq!(plugin_rows.len(), 4);
     assert_eq!(plugin_rows[0].0, "code-reviewer");
     assert_eq!(plugin_rows[0].1, 3200);
     assert_eq!(plugin_rows[0].2, 3);
@@ -288,6 +290,16 @@ async fn seeds_featured_plugins_without_overwriting_curation() {
     assert_eq!(plugin_rows[1].2, 20);
     assert_eq!(plugin_rows[1].3["en-US"], "Web Search");
     assert_eq!(plugin_rows[1].4, None);
+    assert_eq!(plugin_rows[2].0, "document-parser");
+    assert_eq!(plugin_rows[2].1, 4300);
+    assert_eq!(plugin_rows[2].2, 30);
+    assert_eq!(plugin_rows[2].3["en-US"], "Universal Document Parser");
+    assert_eq!(plugin_rows[2].4, None);
+    assert_eq!(plugin_rows[3].0, "sql-console");
+    assert_eq!(plugin_rows[3].1, 3100);
+    assert_eq!(plugin_rows[3].2, 40);
+    assert_eq!(plugin_rows[3].3["en-US"], "Database Connector");
+    assert_eq!(plugin_rows[3].4, None);
 
     pool.close().await;
     sqlx::query(sqlx::AssertSqlSafe(format!(

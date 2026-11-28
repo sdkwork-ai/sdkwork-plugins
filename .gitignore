@@ -48,3 +48,6 @@ apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.d.ts
 apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/**/*.d.ts.map
 !apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/global.d.ts
 !apps/sdkwork-plugins-pc/packages/sdkwork-plugins-pc-marketplace/src/css-modules.d.ts
+
+# Local debugging probes reference absolute machine paths and must stay untracked
+**/.probe-entry.*

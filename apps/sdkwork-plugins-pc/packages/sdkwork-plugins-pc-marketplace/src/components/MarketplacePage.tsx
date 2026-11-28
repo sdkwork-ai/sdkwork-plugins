@@ -53,6 +53,20 @@ function localizedText(values: Record<string, string> | undefined, locale: Marke
   return values?.[locale] || values?.[locale === 'zh-CN' ? 'zh' : 'en'] || values?.['en-US'];
 }
 
+/**
+ * The viewport the catalog scrolls in: the first ancestor that scrolls its own
+ * content, or undefined when the catalog scrolls with the document. A host
+ * panel, a standalone window and an embedded frame all resolve here, so the
+ * sentinel and the back-to-top control never assume who owns the scrollbar.
+ */
+function scrollParentOf(node: HTMLElement | null): HTMLElement | null {
+  for (let parent = node?.parentElement ?? null; parent !== null; parent = parent.parentElement) {
+    const { overflowY } = window.getComputedStyle(parent);
+    if (overflowY === 'auto' || overflowY === 'scroll') return parent;
+  }
+  return null;
+}
+
 function categoryName(category: MarketplaceCategory, locale: MarketplaceLocale): string {
   return localizedText(category.nameLocales, locale) || category.name;
 }
@@ -216,8 +230,23 @@ export function MarketplacePage({
     return () => { window.removeEventListener('resize', measure); };
   }, [categoriesExpanded, catalog.categories]);
 
+  // Paging follows the scroll position: the sentinel below the list enters the
+  // scrollport and the next page starts loading, so a long catalog is one
+  // continuous scroll instead of a button press per page.
+  const rootRef = useRef<HTMLElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  // Older browsers keep the explicit "load more" button.
+  const autoPaging = typeof IntersectionObserver !== 'undefined';
+  const [scrolled, setScrolled] = useState(false);
+  // Set when a page arrives without growing the list: the catalog keeps saying
+  // `hasMore` but has nothing left, so paging stops rather than looping.
+  const [pagingStalled, setPagingStalled] = useState(false);
+  const loadedCountRef = useRef(0);
+
   useEffect(() => {
     setPage(1);
+    setPagingStalled(false);
+    loadedCountRef.current = 0;
     setCatalog({ categories: [], featuredPlugins: [], popularPlugins: [], hasMore: false });
   }, [query, categoryCode]);
 
@@ -245,6 +274,46 @@ export function MarketplacePage({
   }, [appClient, query, categoryCode, retryVersion, page]);
 
   const { categories, featuredPlugins: featured, popularPlugins: popular, hasMore } = catalog;
+
+  useEffect(() => {
+    const loaded = popular.length;
+    if (page > 1 && loaded === loadedCountRef.current) setPagingStalled(true);
+    loadedCountRef.current = loaded;
+  }, [page, popular.length]);
+
+  // The catalog scrolls inside whatever viewport its host gives it, so both the
+  // observer and the back-to-top control resolve that viewport instead of
+  // assuming the catalog owns one.
+  useEffect(() => {
+    const scroller = scrollParentOf(rootRef.current);
+    const onScroll = (): void => { setScrolled((scroller?.scrollTop ?? window.scrollY) > 320); };
+    onScroll();
+    const target: HTMLElement | Window = scroller ?? window;
+    target.addEventListener('scroll', onScroll, { passive: true });
+    return () => { target.removeEventListener('scroll', onScroll); };
+  }, []);
+
+  // One page per sentinel sighting, and only while the catalog reports more:
+  // the list ends when the catalog answers without `hasMore`.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!autoPaging || sentinel === null || !hasMore || loading || error || pagingStalled) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(entry => entry.isIntersecting)) setPage(value => value + 1);
+    }, { root: scrollParentOf(rootRef.current), rootMargin: '320px 0px' });
+    observer.observe(sentinel);
+    return () => { observer.disconnect(); };
+  }, [autoPaging, error, hasMore, loading, page, pagingStalled]);
+
+  const backToTop = (): void => {
+    const scroller = scrollParentOf(rootRef.current);
+    if (scroller === null) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    scroller.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const cardState = (plugin: PluginRecord): { installation?: MarketplaceInstallationState; state: MarketplaceCardState } => {
     const installation = installationOf?.(plugin);
     return {
@@ -259,7 +328,7 @@ export function MarketplacePage({
   };
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} ref={rootRef}>
       {hideToolbar ? null : (
         <header className={styles.header}>
           {showSectionNavigation && <nav className={styles.mainNav} aria-label={messages.sectionNavigationLabel}>
@@ -387,9 +456,41 @@ export function MarketplacePage({
             })}
           </section>
           {error ? <div className={styles.loadMore} role="alert">{messages.loadError}<button type="button" className={styles.statusButton} onClick={() => { setRetryVersion(value => value + 1); }}>{messages.retry}</button></div> : null}
-          {hasMore && !error ? <div className={styles.loadMore}><button type="button" className={styles.statusButton} disabled={loading} onClick={() => { setPage(value => value + 1); }}>{loading ? messages.loadingMore : messages.loadMore}</button></div> : null}
+          {/* The list loads as it is scrolled: this row is both the sentinel the
+              observer watches and the fallback the reader can press, so a page
+              without IntersectionObserver still pages by hand. */}
+          {hasMore && !error ? (
+            <div className={styles.loadMore} ref={sentinelRef} data-catalog-sentinel="">
+              {autoPaging
+                ? (
+                  <>
+                    <span className={styles.spinner} aria-hidden="true" />
+                    {loading ? messages.loadingMore : messages.loadMoreHint}
+                  </>
+                )
+                : (
+                  <button type="button" className={styles.statusButton} disabled={loading} onClick={() => { setPage(value => value + 1); }}>
+                    {loading ? messages.loadingMore : messages.loadMore}
+                  </button>
+                )}
+            </div>
+          ) : null}
         </div>
       )}
+      {scrolled ? (
+        <button
+          type="button"
+          className={styles.backToTop}
+          data-back-to-top=""
+          aria-label={messages.backToTop}
+          title={messages.backToTop}
+          onClick={backToTop}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 19V5m0 0-6 6m6-6 6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      ) : null}
     </main>
   );
 }

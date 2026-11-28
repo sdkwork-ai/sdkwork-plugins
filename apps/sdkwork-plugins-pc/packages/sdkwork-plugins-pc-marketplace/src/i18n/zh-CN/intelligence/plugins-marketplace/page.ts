@@ -36,4 +36,6 @@ export const marketplaceMessages = {
   addDescription: '添加经过 SDKWork Plugins 发布的插件。',
   expandCategories: '展开全部分类',
   collapseCategories: '收起分类',
+  loadMoreHint: '继续向下滚动加载更多',
+  backToTop: '回到顶部',
 } as const;
