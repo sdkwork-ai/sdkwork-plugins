@@ -238,15 +238,13 @@ export function MarketplacePage({
   // Older browsers keep the explicit "load more" button.
   const autoPaging = typeof IntersectionObserver !== 'undefined';
   const [scrolled, setScrolled] = useState(false);
-  // Set when a page arrives without growing the list: the catalog keeps saying
-  // `hasMore` but has nothing left, so paging stops rather than looping.
+  // Set when a page arrives empty: the catalog keeps saying `hasMore` but has
+  // nothing left, so paging stops rather than looping.
   const [pagingStalled, setPagingStalled] = useState(false);
-  const loadedCountRef = useRef(0);
 
   useEffect(() => {
     setPage(1);
     setPagingStalled(false);
-    loadedCountRef.current = 0;
     setCatalog({ categories: [], featuredPlugins: [], popularPlugins: [], hasMore: false });
   }, [query, categoryCode]);
 
@@ -262,6 +260,7 @@ export function MarketplacePage({
       includeFeatured: page === 1 && categoryCode === undefined && !query,
     })
       .then(result => {
+        if (page > 1 && result.popularPlugins.length === 0) setPagingStalled(true);
         setCatalog(current => mergeMarketplaceCatalog(current, result, page));
       })
       .catch(() => {
@@ -275,11 +274,6 @@ export function MarketplacePage({
 
   const { categories, featuredPlugins: featured, popularPlugins: popular, hasMore } = catalog;
 
-  useEffect(() => {
-    const loaded = popular.length;
-    if (page > 1 && loaded === loadedCountRef.current) setPagingStalled(true);
-    loadedCountRef.current = loaded;
-  }, [page, popular.length]);
 
   // The catalog scrolls inside whatever viewport its host gives it, so both the
   // observer and the back-to-top control resolve that viewport instead of
