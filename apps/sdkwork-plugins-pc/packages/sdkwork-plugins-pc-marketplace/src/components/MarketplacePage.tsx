@@ -126,19 +126,43 @@ function PluginDetailDialog({
   onOpenPlugin,
 }: PluginDetailDialogProps) {
   const [copied, setCopied] = useState<string | undefined>();
+  /** Index of the screenshot being previewed, if the preview is open. */
+  const [previewIndex, setPreviewIndex] = useState<number | undefined>();
   const title = localizedText(plugin.nameLocales, locale) || plugin.name;
   const description = localizedText(plugin.descriptionLocales, locale) || plugin.description || '';
   const category = plugin.categoryCode == null
     ? undefined
     : categories.find(entry => entry.categoryCode === plugin.categoryCode);
-  const screenshot = plugin.media.find(asset => asset.kind === 'screenshot');
+  const screenshots = plugin.media
+    .filter(asset => asset.kind === 'screenshot')
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  const screenshot = screenshots[0];
   const commands = plugin.installTargets.map(target => target.spec);
+  const previewing = previewIndex === undefined ? undefined : screenshots[previewIndex];
 
+  // Escape closes the preview first and the dialog second; the arrows page
+  // through the screenshots while previewing.
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        if (previewIndex === undefined) onClose();
+        else setPreviewIndex(undefined);
+        return;
+      }
+      if (previewIndex === undefined || screenshots.length < 2) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setPreviewIndex(current => (current === undefined ? current : (current - 1 + screenshots.length) % screenshots.length));
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        setPreviewIndex(current => (current === undefined ? current : (current + 1) % screenshots.length));
+      }
+    };
     document.addEventListener('keydown', onKeyDown);
     return () => { document.removeEventListener('keydown', onKeyDown); };
-  }, [onClose]);
+  }, [onClose, previewIndex, screenshots.length]);
 
   const copy = (command: string): void => {
     void navigator.clipboard?.writeText(command).then(() => {
@@ -148,6 +172,7 @@ function PluginDetailDialog({
   };
 
   return (
+    <>
     <div className={styles.dialogScrim} role="presentation" onClick={onClose}>
       <div
         className={styles.dialog}
@@ -180,7 +205,17 @@ function PluginDetailDialog({
 
         {category === undefined ? null : <span className={styles.dialogCategory}>{categoryName(category, locale)}</span>}
         <p className={styles.dialogDescription}>{description}</p>
-        {screenshot === undefined ? null : <img className={styles.dialogShot} src={screenshot.url} alt="" loading="lazy" />}
+        {screenshot === undefined ? null : (
+          <button
+            type="button"
+            className={styles.dialogShotButton}
+            aria-label={messages.previewImage}
+            title={messages.previewImage}
+            onClick={() => { setPreviewIndex(0); }}
+          >
+            <img className={styles.dialogShot} src={screenshot.url} alt="" loading="lazy" />
+          </button>
+        )}
 
         <details className={styles.dialogSection}>
           <summary className={styles.dialogSummary}>
@@ -249,6 +284,60 @@ function PluginDetailDialog({
         </footer>
       </div>
     </div>
+    {previewing === undefined ? null : (
+        <div className={styles.previewScrim} role="presentation" onClick={() => { setPreviewIndex(undefined); }}>
+          <div className={styles.previewBar}>
+            <span className={styles.previewCounter}>{messages.imageCounter((previewIndex ?? 0) + 1, screenshots.length)}</span>
+            <button
+              type="button"
+              className={styles.previewClose}
+              aria-label={messages.close}
+              onClick={() => { setPreviewIndex(undefined); }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          {screenshots.length > 1 ? (
+            <button
+              type="button"
+              className={`${styles.previewNav} ${styles.previewPrev}`}
+              aria-label={messages.previousImage}
+              onClick={(event) => {
+                event.stopPropagation();
+                setPreviewIndex(index => (index === undefined ? index : (index - 1 + screenshots.length) % screenshots.length));
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m14 6-6 6 6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : null}
+          <img
+            className={styles.previewImage}
+            src={previewing.url}
+            alt={title}
+            onClick={(event) => { event.stopPropagation(); }}
+          />
+          {screenshots.length > 1 ? (
+            <button
+              type="button"
+              className={`${styles.previewNav} ${styles.previewNext}`}
+              aria-label={messages.nextImage}
+              onClick={(event) => {
+                event.stopPropagation();
+                setPreviewIndex(index => (index === undefined ? index : (index + 1) % screenshots.length));
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m10 6 6 6-6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
+    )}
+    </>
   );
 }
 

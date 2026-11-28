@@ -602,3 +602,87 @@
   background: rgba(255, 255, 255, 0.1);
 }
 .repoLink:hover { color: var(--market-text); background: rgba(255, 255, 255, 0.16); }
+
+/* The screenshot is a preview trigger: it keeps the shot's own sizing but shows
+   the pointer it deserves. */
+.dialogShotButton {
+  position: relative;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  line-height: 0;
+  cursor: zoom-in;
+}
+.dialogShotButton:focus-visible {
+  outline: 2px solid var(--market-text);
+  outline-offset: 2px;
+}
+
+/* --- Screenshot preview --------------------------------------------------- */
+/* A layer above the dialog: the shot at its own size, bounded by the window. */
+.previewScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+}
+.previewImage {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  background: #000;
+  object-fit: contain;
+  cursor: default;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+.previewBar {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
+.previewClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+}
+.previewClose:hover { background: rgba(255, 255, 255, 0.24); }
+.previewCounter { font-variant-numeric: tabular-nums; }
+.previewNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+}
+.previewNav:hover { background: rgba(255, 255, 255, 0.24); }
+.previewPrev { left: 20px; }
+.previewNext { right: 20px; }

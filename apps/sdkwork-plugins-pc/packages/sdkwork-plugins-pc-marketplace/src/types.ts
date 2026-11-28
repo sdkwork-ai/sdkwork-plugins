@@ -68,6 +68,14 @@ export interface MarketplaceMessages {
   stars: (count: string) => string;
   /** Download count label in the dialog header. */
   downloads: (count: string) => string;
+  /** Accessible name of one screenshot in the detail dialog. */
+  previewImage: string;
+  /** Previous screenshot in the preview. */
+  previousImage: string;
+  /** Next screenshot in the preview. */
+  nextImage: string;
+  /** One-based position of the previewed screenshot. */
+  imageCounter: (current: number, total: number) => string;
 }
 
 /** Install target kinds the local Host can execute. */

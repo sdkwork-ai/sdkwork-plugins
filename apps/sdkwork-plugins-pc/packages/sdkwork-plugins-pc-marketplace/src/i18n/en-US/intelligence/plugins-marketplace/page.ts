@@ -53,4 +53,8 @@ export const marketplaceMessages = {
   addedOn: (date: string) => date,
   stars: (count: string) => `${count} stars`,
   downloads: (count: string) => `${count} downloads`,
+  previewImage: 'Preview image',
+  previousImage: 'Previous image',
+  nextImage: 'Next image',
+  imageCounter: (current: number, total: number) => `${current} / ${total}`,
 } as const;

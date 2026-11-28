@@ -53,4 +53,8 @@ export const marketplaceMessages = {
   addedOn: (date: string) => date,
   stars: (count: string) => `${count} 星`,
   downloads: (count: string) => `${count} 次下载`,
+  previewImage: '预览图片',
+  previousImage: '上一张',
+  nextImage: '下一张',
+  imageCounter: (current: number, total: number) => `${current} / ${total}`,
 } as const;
