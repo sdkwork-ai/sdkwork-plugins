@@ -80,6 +80,178 @@ function useDebouncedSearch(value: string, delayMs = 180): string {
   return query;
 }
 
+/** The git glyph a card and the detail dialog use for a repository link. */
+function GitIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3v6m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm0 6v6m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Everything the detail dialog reads from one catalog record. */
+interface PluginDetailDialogProps {
+  plugin: PluginRecord;
+  locale: MarketplaceLocale;
+  messages: MarketplaceMessages;
+  categories: readonly PluginCategoryRecord[];
+  installation?: MarketplaceInstallationState;
+  state: MarketplaceCardState;
+  onClose: () => void;
+  onInstall?: (plugin: PluginRecord) => void;
+  onUpdate?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+  onRemove?: (plugin: PluginRecord, installation: MarketplaceInstallationState) => void;
+  onOpenPlugin?: (plugin: PluginRecord) => void;
+}
+
+/**
+ * One plugin's detail, drawn over the catalog.
+ *
+ * It shows what the catalog already knows — identity, registry facts, the
+ * declared capabilities and the install commands — and reuses the card's install
+ * controls, so installing never needs a second implementation. The dialog closes
+ * on the scrim, on Escape and on its own close control.
+ */
+function PluginDetailDialog({
+  plugin,
+  locale,
+  messages,
+  categories,
+  installation,
+  state,
+  onClose,
+  onInstall,
+  onUpdate,
+  onRemove,
+  onOpenPlugin,
+}: PluginDetailDialogProps) {
+  const [copied, setCopied] = useState<string | undefined>();
+  const title = localizedText(plugin.nameLocales, locale) || plugin.name;
+  const description = localizedText(plugin.descriptionLocales, locale) || plugin.description || '';
+  const category = plugin.categoryCode == null
+    ? undefined
+    : categories.find(entry => entry.categoryCode === plugin.categoryCode);
+  const screenshot = plugin.media.find(asset => asset.kind === 'screenshot');
+  const commands = plugin.installTargets.map(target => target.spec);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('keydown', onKeyDown); };
+  }, [onClose]);
+
+  const copy = (command: string): void => {
+    void navigator.clipboard?.writeText(command).then(() => {
+      setCopied(command);
+      window.setTimeout(() => { setCopied(current => (current === command ? undefined : current)); }, 1600);
+    }).catch(() => {});
+  };
+
+  return (
+    <div className={styles.dialogScrim} role="presentation" onClick={onClose}>
+      <div
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="plugin-detail-title"
+        onClick={event => { event.stopPropagation(); }}
+      >
+        <header className={styles.dialogHeader}>
+          <h2 id="plugin-detail-title" className={styles.dialogTitle}>{messages.detailTitle(title)}</h2>
+          <button type="button" className={styles.dialogClose} aria-label={messages.close} onClick={onClose} autoFocus>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+            </svg>
+          </button>
+        </header>
+
+        <div className={styles.dialogIdentity}>
+          {plugin.iconUrl
+            ? <img className={styles.dialogIcon} src={plugin.iconUrl} alt="" />
+            : <span className={`${styles.dialogIcon} ${styles.pluginFallback}`} aria-hidden="true">{plugin.name.slice(0, 1)}</span>}
+          <div className={styles.dialogMeta}>
+            <span className={styles.dialogOwner}>{plugin.ownerLogin ?? plugin.provider ?? messages.featured}</span>
+            <span>{plugin.versionLabel}</span>
+            {Number(plugin.downloadsCount) > 0 ? <span>{messages.downloads(plugin.downloadsCount)}</span> : null}
+            {Number(plugin.starsCount) > 0 ? <span>{messages.stars(plugin.starsCount)}</span> : null}
+            {plugin.addedOn === null ? null : <span>{messages.addedOn(plugin.addedOn)}</span>}
+          </div>
+        </div>
+
+        {category === undefined ? null : <span className={styles.dialogCategory}>{categoryName(category, locale)}</span>}
+        <p className={styles.dialogDescription}>{description}</p>
+        {screenshot === undefined ? null : <img className={styles.dialogShot} src={screenshot.url} alt="" loading="lazy" />}
+
+        <details className={styles.dialogSection}>
+          <summary className={styles.dialogSummary}>
+            <span className={styles.dialogSectionIcon} aria-hidden="true">?</span>
+            <span className={styles.dialogSectionTitle}>{messages.capabilitiesTitle}</span>
+            <span className={styles.dialogSummaryHint}>{messages.capabilitiesSummary(plugin.capabilities.length)}</span>
+            <svg className={styles.dialogChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </summary>
+          <ul className={styles.dialogList}>
+            {plugin.capabilities.map(capability => <li key={capability}>{capability}</li>)}
+            {plugin.capabilityRedLines.map(redLine => <li key={redLine} className={styles.dialogRedLine}>{redLine}</li>)}
+          </ul>
+          <p className={styles.dialogCaveat}>{messages.capabilitiesCaveat}</p>
+        </details>
+
+        <details className={styles.dialogSection}>
+          <summary className={styles.dialogSummary}>
+            <span className={styles.dialogSectionIcon} aria-hidden="true">&gt;_</span>
+            <span className={styles.dialogSectionTitle}>{messages.installCommandTitle}</span>
+            <svg className={styles.dialogChevron} width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </summary>
+          <ul className={styles.dialogList}>
+            {commands.map(command => (
+              <li key={command} className={styles.dialogCommand}>
+                <code>{command}</code>
+                <button type="button" className={styles.dialogCopy} onClick={() => { copy(command); }}>
+                  {copied === command ? messages.commandCopied : messages.copyCommand}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+
+        <p className={styles.dialogNote}>{messages.communityPluginNote}</p>
+
+        <footer className={styles.dialogActions}>
+          {plugin.repositoryUrl === null
+            ? null
+            : <a
+                className={styles.dialogAction}
+                href={plugin.repositoryUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={messages.openRepository}
+              >
+                <GitIcon />
+                {messages.openRepository}
+              </a>}
+          {onOpenPlugin === undefined
+            ? null
+            : <button type="button" className={styles.dialogAction} onClick={() => { onOpenPlugin(plugin); }}>{messages.openPluginPage}</button>}
+          <button type="button" className={styles.dialogAction} onClick={onClose}>{messages.close}</button>
+          <InstallControls
+            plugin={plugin}
+            installation={installation}
+            state={state}
+            messages={messages}
+            onInstall={onInstall}
+            onUpdate={onUpdate}
+            onRemove={onRemove}
+          />
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 /** Visible explanation for a disabled install or update control. */
 function controlReason(state: MarketplaceCardState, messages: MarketplaceMessages): string | undefined {
   if (state.installing) return undefined;
@@ -238,15 +410,26 @@ export function MarketplacePage({
   // Older browsers keep the explicit "load more" button.
   const autoPaging = typeof IntersectionObserver !== 'undefined';
   const [scrolled, setScrolled] = useState(false);
+  /** The plugin whose detail dialog is open, if any. */
+  const [detailPlugin, setDetailPlugin] = useState<PluginRecord | undefined>();
   // Set when a page arrives empty: the catalog keeps saying `hasMore` but has
   // nothing left, so paging stops rather than looping.
   const [pagingStalled, setPagingStalled] = useState(false);
 
-  useEffect(() => {
+  // A filter change only restarts the list, and it restarts during render so the
+  // fetch below never fires a page number left over from the previous filter —
+  // an effect would let that stale page request out and merge another filter's
+  // rows into the new list. The category strip is catalog taxonomy, the same
+  // categories whatever filter is active, so it stays on screen instead of
+  // emptying and repainting on every category press.
+  const filterKey = `${query}\u0000${categoryCode ?? ''}`;
+  const [renderedFilter, setRenderedFilter] = useState(filterKey);
+  if (renderedFilter !== filterKey) {
+    setRenderedFilter(filterKey);
     setPage(1);
     setPagingStalled(false);
-    setCatalog({ categories: [], featuredPlugins: [], popularPlugins: [], hasMore: false });
-  }, [query, categoryCode]);
+    setCatalog(current => ({ ...current, hasMore: false }));
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -319,6 +502,13 @@ export function MarketplacePage({
         reason: installDisabledReason?.(plugin),
       }),
     };
+  };
+
+  // One dialog serves both card layouts: a card press opens the plugin's own
+  // detail, which the catalog already holds, so the reader can read what the
+  // plugin declares and see its install command before installing.
+  const openDetail = (plugin: PluginRecord): void => {
+    setDetailPlugin(plugin);
   };
 
   return (
@@ -418,9 +608,20 @@ export function MarketplacePage({
                   <article className={styles.featureCard} key={plugin.pluginKey}>
                     <span className={styles.featureCopy}>
                       <span className={styles.eyebrow}>{category === undefined ? messages.featured : categoryName(category, locale)}</span>
-                      {onOpenPlugin === undefined
-                        ? <span className={styles.featureTitle}>{title}</span>
-                        : <button type="button" className={styles.featureTitleLink} onClick={() => { onOpenPlugin(plugin); }}>{title}</button>}
+                      <button type="button" className={styles.featureTitleLink} onClick={() => { openDetail(plugin); }}>{title}</button>
+                      {plugin.repositoryUrl === null
+                        ? null
+                        : <a
+                            className={styles.repoLink}
+                            href={plugin.repositoryUrl}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={messages.openRepository}
+                            title={messages.openRepository}
+                            onClick={event => { event.stopPropagation(); }}
+                          >
+                            <GitIcon />
+                          </a>}
                       <span className={styles.featureDescription}>{description}</span>
                       <InstallControls plugin={plugin} installation={installation} state={state} messages={messages} onInstall={onInstall} onUpdate={onUpdate} onRemove={onRemove} />
                     </span>
@@ -440,9 +641,26 @@ export function MarketplacePage({
                 <article className={styles.pluginRow} key={plugin.pluginKey}>
                   {plugin.iconUrl ? <img className={styles.pluginIcon} src={plugin.iconUrl} alt="" loading="lazy" /> : <div className={`${styles.pluginIcon} ${styles.pluginFallback}`} aria-hidden="true">{plugin.name.slice(0, 1)}</div>}
                   <div className={styles.pluginCopy}>
-                    <div className={styles.pluginName} title={localizedText(plugin.nameLocales, locale) || plugin.name}>{localizedText(plugin.nameLocales, locale) || plugin.name}</div>
+                    <button type="button" className={styles.pluginName} onClick={() => { openDetail(plugin); }}>
+                      {localizedText(plugin.nameLocales, locale) || plugin.name}
+                    </button>
                     <div className={styles.pluginDescription} title={localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}>{localizedText(plugin.descriptionLocales, locale) || plugin.description || ''}</div>
-                    {plugin.usageCount != null ? <div className={styles.pluginUsage}>{messages.usage(plugin.usageCount)}</div> : null}
+                    <div className={styles.pluginFooter}>
+                      {plugin.usageCount != null ? <span className={styles.pluginUsage}>{messages.usage(plugin.usageCount)}</span> : null}
+                      {plugin.repositoryUrl === null
+                        ? null
+                        : <a
+                            className={styles.repoLink}
+                            href={plugin.repositoryUrl}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            aria-label={messages.openRepository}
+                            title={messages.openRepository}
+                            onClick={event => { event.stopPropagation(); }}
+                          >
+                            <GitIcon />
+                          </a>}
+                    </div>
                   </div>
                   <InstallControls plugin={plugin} installation={installation} state={state} messages={messages} onInstall={onInstall} onUpdate={onUpdate} onRemove={onRemove} />
                 </article>
@@ -470,6 +688,21 @@ export function MarketplacePage({
             </div>
           ) : null}
         </div>
+      )}
+      {detailPlugin === undefined ? null : (
+        <PluginDetailDialog
+          plugin={detailPlugin}
+          locale={locale}
+          messages={messages}
+          categories={categories}
+          installation={cardState(detailPlugin).installation}
+          state={cardState(detailPlugin).state}
+          onClose={() => { setDetailPlugin(undefined); }}
+          {...(onInstall === undefined ? {} : { onInstall })}
+          {...(onUpdate === undefined ? {} : { onUpdate })}
+          {...(onRemove === undefined ? {} : { onRemove })}
+          {...(onOpenPlugin === undefined ? {} : { onOpenPlugin })}
+        />
       )}
       {scrolled ? (
         <button

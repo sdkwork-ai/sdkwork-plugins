@@ -38,6 +38,34 @@ export interface MarketplaceMessages {
   loadMoreHint: string;
   /** Accessible name of the control that scrolls the catalog back to its top. */
   backToTop: string;
+  /** Close action of the plugin detail dialog. */
+  close: string;
+  /** Dialog heading for one plugin's detail. */
+  detailTitle: (name: string) => string;
+  /** Collapsible section listing what a plugin declares it does. */
+  capabilitiesTitle: string;
+  /** How many capabilities a plugin declares. */
+  capabilitiesSummary: (declared: number) => string;
+  /** Caveat under the capability list: a static scan proves presence, not absence. */
+  capabilitiesCaveat: string;
+  /** Collapsible section showing the install commands of a plugin. */
+  installCommandTitle: string;
+  /** Note under the actions: community plugins keep build scripts off by default. */
+  communityPluginNote: string;
+  /** Action that opens the plugin's git repository in a new browser tab. */
+  openRepository: string;
+  /** Copy action for one install command. */
+  copyCommand: string;
+  /** Confirmation after copying an install command. */
+  commandCopied: string;
+  /** Secondary action in the dialog for a host that owns the plugin's own page. */
+  openPluginPage: string;
+  /** Release date label in the dialog header. */
+  addedOn: (date: string) => string;
+  /** Star count label in the dialog header. */
+  stars: (count: string) => string;
+  /** Download count label in the dialog header. */
+  downloads: (count: string) => string;
 }
 
 /** Install target kinds the local Host can execute. */

@@ -369,3 +369,202 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
 }
+
+/* --- Plugin detail dialog ------------------------------------------------- */
+/* The scrim and the panel are fixed: the catalog scrolls inside a host panel,
+   and the dialog must sit over the whole window regardless of that viewport. */
+.dialogScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px 32px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(2px);
+}
+.dialog {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px 20px;
+  border-radius: 16px;
+  color: var(--market-text);
+  background: var(--market-surface);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+.dialogHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.dialogTitle { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; }
+.dialogClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--market-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.dialogClose:hover { color: var(--market-text); background: rgba(255, 255, 255, 0.1); }
+.dialogIdentity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dialogIcon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.12);
+}
+.dialogMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--market-muted);
+  font-size: 13px;
+}
+.dialogMeta > span + span::before { content: '·'; margin-right: 8px; color: var(--market-muted); }
+.dialogOwner { color: var(--market-text); font-weight: 500; }
+.dialogCategory {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: var(--market-muted);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+.dialogDescription { margin: 0; font-size: 14px; font-weight: 500; line-height: 1.6; }
+.dialogShot {
+  width: min(360px, 100%);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.dialogSection {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.dialogSummary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.dialogSummary::-webkit-details-marker { display: none; }
+.dialogSectionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  color: var(--market-muted);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.dialogSectionTitle { font-size: 14px; font-weight: 500; }
+.dialogSummaryHint { margin-left: auto; color: var(--market-muted); font-size: 13px; }
+.dialogChevron { flex: none; color: var(--market-muted); transition: transform 120ms; }
+.dialogSection[open] .dialogChevron { transform: rotate(90deg); }
+.dialogList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 14px 12px 46px;
+  color: var(--market-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dialogRedLine { color: var(--market-danger); }
+.dialogCommand { display: flex; align-items: center; gap: 10px; }
+.dialogCommand code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--market-text);
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+}
+.dialogCopy {
+  flex: none;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--market-text);
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dialogCaveat { margin: 0; padding: 0 14px 12px 46px; color: var(--market-muted); font-size: 12px; line-height: 1.5; }
+.dialogNote { margin: 0; color: var(--market-muted); font-size: 12px; }
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 6px;
+}
+.dialogAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--market-line);
+  border-radius: 8px;
+  color: var(--market-text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dialogAction:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* --- Card affordances ---------------------------------------------------- */
+/* A row card is one control: the name is a real button whose hit area covers the
+   card, and the card's own buttons and links sit above that area. */
+.pluginName {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.pluginName::after { content: ''; position: absolute; inset: 0; }
+.pluginRow { position: relative; transition: background 120ms; }
+.pluginRow:hover { background: rgba(255, 255, 255, 0.04); }
+.pluginRow > .installControls,
+.pluginFooter { position: relative; z-index: 1; }
+.pluginFooter { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.repoLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  color: var(--market-muted);
+  background: rgba(255, 255, 255, 0.08);
+}
+.repoLink:hover { color: var(--market-text); background: rgba(255, 255, 255, 0.16); }
